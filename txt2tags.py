@@ -201,6 +201,7 @@ TARGET_NAMES = {
     "art": _("ASCII Art text"),
     "adoc": _("AsciiDoc document"),
     "creole": _("Creole 1.0 document"),
+    "md": _("Markdown text"),
 }
 
 TARGETS = sorted(TARGET_NAMES)
@@ -554,7 +555,12 @@ _%(HEADER3)s_
 %(HEADER1)s
 %(HEADER2)s
 %(HEADER3)s
-"""
+""",
+   "md": """\
+%(HEADER1)s
+%(HEADER2)s
+%(HEADER3)s
+""",
     # @SysInclude { tbl }                   # Tables support
     # setup: @MakeContents { Yes }          # show TOC
     # setup: @SectionGap                    # break page at each section
@@ -1384,6 +1390,47 @@ def getTags(config):
             # TODO: placeholder (mark for unknown syntax)
             # if possible: http://www.wikicreole.org/wiki/Placeholder
         },
+        "md": {
+                "title1": "# \a ",
+                "title2": "## \a ",
+                "title3": "### \a ",
+                "title4": "#### \a ",
+                "title5": "##### \a ",
+                "blockVerbOpen": "```",
+                "blockVerbClose": "```",
+                "blockQuoteLine": "> ",
+                "fontMonoOpen": "`",
+                "fontMonoClose": "`",
+                "fontBoldOpen": "**",
+                "fontBoldClose": "**",
+                "fontItalicOpen": "*",
+                "fontItalicClose": "*",
+                "fontUnderlineOpen": "",
+                "fontUnderlineClose": "",
+                "fontStrikeOpen": "~~",
+                "fontStrikeClose": "~~",
+                # Lists
+                "listItemLine": " ",
+                "listItemOpen": "-",
+                "numlistItemOpen": "\a. ",
+                "deflistItem1Open": ": ",
+                # Verbatim block
+                "bar1": "---",
+                "bar2": "---",
+                # URL, email and anchor
+                "url": "[\a](\a)",
+                "urlMark": "[\a](\a)",
+                "email": "\a",
+                # Image markup
+                "img": "![](\a)",
+                # Table attributes
+                "tableTitleRowOpen": "| ",
+                "tableTitleRowClose": "|\n|---------------|",
+                "tableTitleCellSep": " |",
+                "tableRowOpen": "|",
+                "tableRowClose": "|",
+                "tableCellSep": " |",
+            },
     }
 
     # Exceptions for --css-sugar
@@ -1845,6 +1892,19 @@ def getRules(config):
             "blanksaroundbar": 1,
             "blanksaroundtitle": 1,
         },
+        "md": {
+            "linkable": 1,
+            "labelbeforelink": 1,
+            "tableable": 1,
+            "imglinkable": 1,
+            "tablecellstrip": 1,
+            "spacedlistitemopen": 1,
+            "spacednumlistitemopen": 1,
+            "blanksaroundpara": 1,
+            "blanksaroundtable": 1,
+            "blanksaroundbar": 1,
+            "blanksaroundtitle": 1,
+        }
     }
 
     # Exceptions for --css-sugar
