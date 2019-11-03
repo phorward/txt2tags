@@ -1,8 +1,24 @@
-# Version 3.2 (unreleased)
+# Version 3.3 (unreleased)
+
+* Remove ASCII art target (Jendrik Seipp).
+* Update html target to HTML5 and drop xhtml target (Jendrik Seipp).
+* Remove %!csv macro (Jendrik Seipp).
+* Drop `--css-inside` option (Jendrik Seipp).
+* Always use CSS sugar and drop `--css-sugar` option (Jendrik Seipp).
+* Remove i18n (Jendrik Seipp).
+* Remove plugins and tools that now live in their own repositories (Jendrik Seipp).
+* Remove code for unused split feature (Jendrik Seipp).
+* Use \n for linebreaks on all platforms as recommended by Python docs (Jendrik Seipp).
+* Fix errors detected by flake8 (Jendrik Seipp).
+* Fix test statistics (Jendrik Seipp).
+* Explain how to install txt2tags with pipx in README file (Jendrik Seipp).
+
+# Version 3.2 (2019-10-30)
 
  * Remove GUI (Jendrik Seipp).
  * Rename txt2tags to txt2tags.py (Jendrik Seipp).
  * Add setup.py file (Jendrik Seipp).
+ * Upload txt2tags to PyPI (Jendrik Seipp).
 
 # Version 3.1 (2019-10-29)
 

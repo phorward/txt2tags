@@ -7,7 +7,6 @@ Txt2tags is a document generator. It reads a text file with
 minimal markup such as `**bold**` and `//italic//` and converts it
 to the following formats:
 
- * ASCII Art
  * AsciiDoc
  * Creole 1.0
  * DocBook
@@ -23,10 +22,22 @@ to the following formats:
  * Plain Text
  * SGML
  * UNIX Manpage
- * Wikipedia / MediaWiki
- * XHTML
+ * Wikipedia/MediaWiki
 
 You can use it as a command line program or in a Python application.
+
+# Installation
+
+We recommend using [pipx](https://pipxproject.github.io/pipx/) to install and run txt2tags in an isolated environment without affecting any system packages:
+
+    python3 -m pip install --user pipx
+    python3 -m pipx ensurepath
+    pipx install txt2tags
+    txt2tags --help
+
+Of course you can also use pip to install txt2tags globally or in a virtual environment:
+
+    pip install -U txt2tags
 
 # Usage
 

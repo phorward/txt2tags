@@ -1,3 +1,5 @@
-<P>
+<div class="body" id="body">
+<p>
 Text.
-</P>
+</p>
+</div>

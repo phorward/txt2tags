@@ -1,8 +1,8 @@
-* Upload txt2tags to PyPI
-* Support running txt2tags with pipx
+* Clean up doc/ directory
 * Clean up the code
-* Make the code faster
 * Remove seldom-used features
+* Make the code faster
+* Drop --encoding option and always use UTF-8
 * Inspect the following commits from https://github.com/txt2tags/txt2tags and backport useful changes:
 
   * Escaping:

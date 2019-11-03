@@ -17,11 +17,19 @@
 
 from __future__ import print_function
 
+import argparse
 import os.path
-import subprocess
 import sys
 
 import lib
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("modules", nargs="*")
+    parser.add_argument("--override", action="store_true", help="override test files")
+    return parser.parse_args()
+
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(DIR)
@@ -38,12 +46,12 @@ for path in sorted(os.listdir(DIR)):
     else:
         sys.exit("test module %s contains neither run.py nor run.sh" % path)
 
-TOTAL_OK = TOTAL_FAILED = 0
-ERRORS = []
+ARGS = parse_args()
+lib.OVERRIDE = ARGS.override
 
-if len(sys.argv) > 1:
-    PYTHON_TEST_MODULES = sorted(set(sys.argv[1:]) & set(PYTHON_TEST_MODULES))
-    BASH_TEST_MODULES = sorted(set(sys.argv[1:]) & set(BASH_TEST_MODULES))
+if ARGS.modules:
+    PYTHON_TEST_MODULES = sorted(set(ARGS.modules) & set(PYTHON_TEST_MODULES))
+    BASH_TEST_MODULES = sorted(set(ARGS.modules) & set(BASH_TEST_MODULES))
 
 # Show which version is being tested
 print("Testing txt2tags version", lib.get_output(lib.TXT2TAGS + ["-V"]))
@@ -64,13 +72,7 @@ for module in PYTHON_TEST_MODULES:
     import run
 
     os.chdir(module)
-    ok, failed, errors = run.run()
-
-    # update count
-    TOTAL_OK += ok
-    TOTAL_FAILED += failed
-    for err in errors:
-        ERRORS.append(os.path.join(module, lib.DIR_ERROR, err))
+    run.run()
 
     # cleanup
     del sys.path[0]
@@ -78,17 +80,17 @@ for module in PYTHON_TEST_MODULES:
     del sys.modules["run"]
 
 # show report at the end
-if TOTAL_FAILED:
-    stats = "%d ok / %d failed" % (TOTAL_OK, TOTAL_FAILED)
+if lib.FAILED:
+    stats = "%d ok / %d failed" % (lib.OK, lib.FAILED)
 else:
     stats = "100% ok"
 print()
-print("Totals: %d tests (%s)" % (TOTAL_OK + TOTAL_FAILED, stats))
+print("Totals: %d tests (%s)" % (lib.OK + lib.FAILED, stats))
 
-if ERRORS:
+if lib.ERROR_FILES:
     print()
     print("Check out the files with errors:")
-    print("\n".join(ERRORS))
+    print("\n".join(lib.ERROR_FILES))
     sys.exit(1)
 
 if BASH_TEST_MODULES:

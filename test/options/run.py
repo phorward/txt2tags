@@ -5,16 +5,13 @@
 # Note: The .t2t files are generated dynamicaly, based on 'tests' dict data
 #
 
-import sys, os
+import os
+import sys
 
 sys.path.insert(0, "..")
 import lib
 
 del sys.path[0]
-
-# sux
-lib.OK = lib.FAILED = 0
-lib.ERROR_FILES = []
 
 # text patterns to compose source files
 EMPTY_HEADER = "\n"
@@ -80,13 +77,6 @@ tests = [
         "extra": ["notarget"],
     },
     {
-        "name": "target-missing",  # t2t infile.t2t
-        "content": EMPTY_HEADER + SIMPLE_BODY,
-        "cmdline": [""],
-        "redir": ["> target-missing.out"],
-        "extra": ["notarget"],
-    },
-    {
         "name": "invalid-short-1",  # t2t -z
         "content": "",
         "cmdline": ["-z"],
@@ -126,20 +116,6 @@ tests = [
         "content": "",
         "cmdline": ["-V"],
         "redir": ["> V.out"],
-        "extra": ["notarget", "noinfile"],
-    },
-    {
-        "name": "help",  # t2t --help
-        "content": "",
-        "cmdline": ["--help"],
-        "redir": ["> help.out"],
-        "extra": ["notarget", "noinfile"],
-    },
-    {
-        "name": "h",  # t2t -h
-        "content": "",
-        "cmdline": ["-h"],
-        "redir": ["> h.out"],
         "extra": ["notarget", "noinfile"],
     },
     {
@@ -580,100 +556,25 @@ tests = [
         "name": "css-sugar-1",  # just body
         "target": "html",
         "content": EMPTY_HEADER + SIMPLE_BODY,
-        "cmdline": ["-H --css-sugar"],
+        "cmdline": ["-H"],
     },
     {
         "name": "css-sugar-2",  # empty toc & body
         "target": "html",
         "content": EMPTY_HEADER + SIMPLE_BODY,
-        "cmdline": ["-H --toc --css-sugar"],
+        "cmdline": ["-H --toc"],
     },
     {
         "name": "css-sugar-3",  # headers, toc & body
         "target": "html",
         "content": FULL_HEADER + VERSION_GOTCHA + TITLED_BODY,
-        "cmdline": ["--toc --css-sugar"],
+        "cmdline": ["--toc"],
     },
     {
         "name": "no-css-sugar-1",  # useless
         "target": "html",
         "content": EMPTY_HEADER + SIMPLE_BODY,
-        "cmdline": ["-H --no-css-sugar"],
-    },
-    {
-        "name": "no-css-sugar-2",  # turning OFF
-        "target": "html",
-        "content": EMPTY_HEADER + SIMPLE_BODY,
-        "cmdline": ["-H --css-sugar --no-css-sugar"],
-    },
-    {
-        "name": "css-inside-1",
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--css-inside --style", lib.CSS_FILE],
-        "extra": ["css"],
-    },
-    {
-        "name": "css-inside-2",  # with --css-sugar
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--css-sugar --css-inside --style", lib.CSS_FILE],
-        "extra": ["css"],
-    },
-    {
-        "name": "css-inside-3",  # missing CSS file
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--css-inside --style", lib.CSS_FILE],
-    },
-    {
-        "name": "css-inside-4",  # no --style
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--css-sugar --css-inside"],
-    },
-    {
-        "name": "css-inside-5",  # two CSS files
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": [
-            "--css-inside --style " + lib.CSS_FILE + " --style " + lib.CSS_FILE
-        ],
-        "extra": ["css"],
-    },
-    {
-        "name": "css-inside-6",  # two CSS files, one missing
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--css-inside --style missing.css --style " + lib.CSS_FILE],
-        "extra": ["css"],
-    },
-    {
-        "name": "no-css-inside-1",  # useless
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--no-css-inside --style", lib.CSS_FILE],
-        "extra": ["css"],
-    },
-    {
-        "name": "no-css-inside-2",  # turning OFF
-        "target": "html",
-        "content": EMPTY_HEADER + VERSION_GOTCHA + SIMPLE_BODY,
-        "cmdline": ["--css-inside --no-css-inside --style", lib.CSS_FILE],
-        "extra": ["css"]
-        ### Now fully tested in test/includeconf
-        # }, {
-        # 'name'   : 'config-file',
-        # 'target' : 'html',
-        # 'content': EMPTY_HEADER+SIMPLE_BODY,
-        # 'cmdline': ["-H --config-file", lib.CONFIG_FILE],
-        # 'extra'  : ['config', 'notarget']
-        # }, {
-        # 'name'   : 'C',
-        # 'target' : 'html',
-        # 'content': EMPTY_HEADER+SIMPLE_BODY,
-        # 'cmdline': ["-H -C", lib.CONFIG_FILE],
-        # 'extra'  : ['config', 'notarget']
+        "cmdline": ["-H"],
     },
     {
         "name": "dump-config",
@@ -704,13 +605,6 @@ tests = [
         "extra": ["notarget"],
     },
     {
-        "name": "targets",
-        "content": EMPTY_HEADER + SIMPLE_BODY,
-        "cmdline": ["--targets"],
-        "redir": ["> targets.out"],
-        "extra": ["notarget"],
-    },
-    {
         "name": "no-targets",
         "content": EMPTY_HEADER + CONFIG_FILE_TXT + SIMPLE_BODY,
         "cmdline": ["-H -o- --targets --no-targets"],
@@ -726,7 +620,7 @@ def run():
         outfile = test["name"] + "." + (test.get("target") or "out")
         extra = test.get("extra") or []
         cmdline = test["cmdline"]
-        if not "noinfile" in extra:
+        if "noinfile" not in extra:
             cmdline = test["cmdline"] + [infile]
         if lib.initTest(test["name"], infile, outfile):
             # create the extra files (if needed for this test)
@@ -735,7 +629,7 @@ def run():
             if "css" in extra:
                 lib.WriteFile(lib.CSS_FILE, CSS_FILE_TXT)
             # may I add the -t target automatically?
-            if not "notarget" in extra:
+            if "notarget" not in extra:
                 cmdline = ["-t", test["target"]] + cmdline
             # may I redirect the output to a file?
             if test.get("redir"):
@@ -752,4 +646,3 @@ def run():
                 os.remove(lib.CSS_FILE)
             if os.path.isfile(lib.CONFIG_FILE):
                 os.remove(lib.CONFIG_FILE)
-    return lib.OK, lib.FAILED, lib.ERROR_FILES

@@ -1,213 +1,263 @@
+<div class="body" id="body">
 
-<H2>Crossing: Title closes it</H2>
+<section~A~>
+<h1></h1>
+<section>
+<h2>Crossing: Title closes it</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H1>Closed</H1>
+</section>
+</section>
+<section>
+<h1>Closed</h1>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Paragraph closes it</H2>
+<section>
+<h2>Crossing: Paragraph closes it</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
-	</BLOCKQUOTE>
-<P>
+	</blockquote>
+<p>
 Closed
-</P>
-	<BLOCKQUOTE>
+</p>
+	<blockquote>
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Macro closes it</H2>
+</section>
+<section>
+<h2>Crossing: Macro closes it</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
-	</BLOCKQUOTE>
-<P>
+	</blockquote>
+<p>
 Closed
-</P>
-	<BLOCKQUOTE>
+</p>
+	<blockquote>
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Command is parsed</H2>
+</section>
+<section>
+<h2>Crossing: Command is parsed</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 included
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Command at end is parsed inside</H2>
+</section>
+<section>
+<h2>Crossing: Command at end is parsed inside</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 	Line 3.
 included
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Line closes it</H2>
+</section>
+<section>
+<h2>Crossing: Line closes it</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<HR NOSHADE SIZE=1>
+<hr class="light">
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Comment Line is ignored</H2>
+</section>
+<section>
+<h2>Crossing: Comment Line is ignored</h2>
 
-	<BLOCKQUOTE>
-	Line 1.
-	Line 3.
-	</BLOCKQUOTE>
-
-<H2>Crossing: Comment Block is ignored</H2>
-
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Raw Line is parsed</H2>
+</section>
+<section>
+<h2>Crossing: Comment Block is ignored</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
+	Line 1.
+	Line 3.
+	</blockquote>
+
+</section>
+<section>
+<h2>Crossing: Raw Line is parsed</h2>
+
+	<blockquote>
 	Line 1.
 Line 2.
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Raw Block is parsed</H2>
+</section>
+<section>
+<h2>Crossing: Raw Block is parsed</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 Line 2.
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Raw Line at end is parsed inside</H2>
+</section>
+<section>
+<h2>Crossing: Raw Line at end is parsed inside</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 	Line 2.
 Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Tagged Line is parsed</H2>
+</section>
+<section>
+<h2>Crossing: Tagged Line is parsed</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 Line 2.
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Tagged Block is parsed</H2>
+</section>
+<section>
+<h2>Crossing: Tagged Block is parsed</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 Line 2.
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Tagged Line at end is parsed inside</H2>
+</section>
+<section>
+<h2>Crossing: Tagged Line at end is parsed inside</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
 	Line 2.
 Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Verbatim Line closes it</H2>
+</section>
+<section>
+<h2>Crossing: Verbatim Line closes it</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<PRE>
+<pre>
+Closed
+</pre>
+
+	<blockquote>
+	Line 3.
+	</blockquote>
+
+</section>
+<section>
+<h2>Crossing: Verbatim Block closes it</h2>
+
+	<blockquote>
+	Line 1.
+	</blockquote>
+
+<pre>
+Closed
+</pre>
+
+	<blockquote>
+	Line 3.
+	</blockquote>
+
+</section>
+<section>
+<h2>Crossing: List closes it</h2>
+
+	<blockquote>
+	Line 1.
+	</blockquote>
+
+<ul>
+<li>Closed
+</li>
+</ul>
+
+	<blockquote>
+	Line 3.
+	</blockquote>
+
+</section>
+<section>
+<h2>Crossing: Numbered List closes it</h2>
+
+	<blockquote>
+	Line 1.
+	</blockquote>
+
+<ol>
+<li>Closed
+</li>
+</ol>
+
+	<blockquote>
+	Line 3.
+	</blockquote>
+
+</section>
+<section>
+<h2>Crossing: Definition List closes it</h2>
+
+	<blockquote>
+	Line 1.
+	</blockquote>
+
+<dl>
+<dt>Closed</dt><dd>
   Closed
-</PRE>
+</dd>
+</dl>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<H2>Crossing: Verbatim Block closes it</H2>
+</section>
+<section>
+<h2>Crossing: Table closes it</h2>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 1.
-	</BLOCKQUOTE>
+	</blockquote>
 
-<PRE>
-  Closed
-</PRE>
+<table>
+<tr>
+<td>Closed</td>
+</tr>
+</table>
 
-	<BLOCKQUOTE>
+	<blockquote>
 	Line 3.
-	</BLOCKQUOTE>
-
-<H2>Crossing: List closes it</H2>
-
-	<BLOCKQUOTE>
-	Line 1.
-	</BLOCKQUOTE>
-
-<UL>
-<LI>Closed
-</UL>
-
-	<BLOCKQUOTE>
-	Line 3.
-	</BLOCKQUOTE>
-
-<H2>Crossing: Numbered List closes it</H2>
-
-	<BLOCKQUOTE>
-	Line 1.
-	</BLOCKQUOTE>
-
-<OL>
-<LI>Closed
-</OL>
-
-	<BLOCKQUOTE>
-	Line 3.
-	</BLOCKQUOTE>
-
-<H2>Crossing: Definition List closes it</H2>
-
-	<BLOCKQUOTE>
-	Line 1.
-	</BLOCKQUOTE>
-
-<DL>
-<DT>Closed</DT><DD>
-  Closed
-</DL>
-
-	<BLOCKQUOTE>
-	Line 3.
-	</BLOCKQUOTE>
-
-<H2>Crossing: Table closes it</H2>
-
-	<BLOCKQUOTE>
-	Line 1.
-	</BLOCKQUOTE>
-
-<TABLE CELLPADDING="4">
-<TR>
-<TD>Closed</TD>
-</TR>
-</TABLE>
-
-	<BLOCKQUOTE>
-	Line 3.
-	</BLOCKQUOTE>
+	</blockquote>
+</section>
+</section>
+</div>

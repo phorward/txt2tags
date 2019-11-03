@@ -5,16 +5,14 @@
 
 from __future__ import print_function
 
-import os, sys, glob
+import glob
+import os
+import sys
 
 sys.path.insert(0, "..")
 import lib
 
 del sys.path[0]
-
-# sux
-lib.OK = lib.FAILED = 0
-lib.ERROR_FILES = []
 
 # left files are generated from right ones (using smart filters)
 ALIASES = {"numlist": "list", "deflist": "list", "bar2": "bar"}
@@ -25,6 +23,7 @@ FILTERS = {
     "numlist": [("pre", "^-( |$)", r"+\1")],
     "bar2": [("pre", "--", r"==")],
 }
+
 
 # convert FILTERS tuples to txt2tags pre/postproc rules
 def addFilters(filters):
@@ -55,7 +54,6 @@ def run():
     outfile = basename + ".txt"
     if lib.initTest(basename, infile, outfile):
         cmdline = ["-t", "txt", "-i", infile]
-        cmdline.extend(["--width", "150"])  # to avoid wrapping
         lib.test(cmdline, outfile)
 
     # using smart filters, same files generate more than one output
@@ -75,16 +73,9 @@ def run():
     if lib.initTest(alias, infile, outfile):
         cmdline = addFilters(FILTERS.get(alias))
         cmdline.append("-H")
-        cmdline.extend(["--width", "150"])  # to avoid wrapping
         cmdline.extend(["-t", "txt", "-o", outfile, infile])
         lib.test(cmdline, outfile)
 
     # clean up
     if os.path.isfile(lib.CONFIG_FILE):
         os.remove(lib.CONFIG_FILE)
-
-    return lib.OK, lib.FAILED, lib.ERROR_FILES
-
-
-if __name__ == "__main__":
-    print(lib.MSG_RUN_ALONE)

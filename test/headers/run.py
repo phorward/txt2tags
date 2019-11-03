@@ -6,16 +6,13 @@
 #       Each character is expanded to a 'txt' dict text.
 #
 
-import sys, os
+import os
+import sys
 
 sys.path.insert(0, "..")
 import lib
 
 del sys.path[0]
-
-# sux
-lib.OK = lib.FAILED = 0
-lib.ERROR_FILES = []
 
 # text patterns to compose source files
 txt = {
@@ -47,7 +44,7 @@ def run():
     for testid in tests.split():
         infile = testid + ".t2t"
         outfile = testid + ".html"
-        cmdline = ["-t html --css-sugar -C test.conf", infile]
+        cmdline = ["-t html -C test.conf", infile]
         if lib.initTest(testid, infile, outfile):
             # compose source file contents
             infile_txt = []
@@ -60,4 +57,3 @@ def run():
             lib.test(cmdline, outfile)
             # remove the trash
             os.remove(infile)
-    return lib.OK, lib.FAILED, lib.ERROR_FILES

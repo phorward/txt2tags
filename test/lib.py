@@ -27,27 +27,14 @@ DIR_ERROR = "error"
 OK = FAILED = 0
 ERROR_FILES = []
 
-MSG_RUN_ALONE = "No No No. Call me with ../run.py\nI can't be run alone."
+OVERRIDE = False
 
 # force absolute path to avoid problems, set default options
 TXT2TAGS = [os.path.abspath(TXT2TAGS), "-q", "--no-rc"]
 
-EXTENSION = {
-    "txt": "txt",
-    "html5": "html",
-    "htmls": "html",
-    "xhtml": "html",
-    "xhtmls": "html",
-    "texs": "tex",
-}
-
 
 def get_output(cmd):
-    return (
-        subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        .communicate()[0]
-        .strip()
-    )
+    return subprocess.check_output(cmd, stderr=subprocess.STDOUT).strip()
 
 
 #
@@ -107,6 +94,13 @@ def remove_version(text):
     return text
 
 
+def mark_ok(outfile):
+    global OK
+    print("OK")
+    OK += 1
+    os.remove(outfile)
+
+
 def mark_failed(outfile):
     global FAILED
     print("FAILED")
@@ -115,7 +109,16 @@ def mark_failed(outfile):
         os.mkdir(DIR_ERROR)
     if os.path.exists(outfile):
         MoveFile(outfile, os.path.join(DIR_ERROR, outfile))
-        ERROR_FILES.append(outfile)
+        module = os.path.basename(os.getcwd())
+        ERROR_FILES.append(os.path.join(module, DIR_ERROR, outfile))
+
+
+def override(okfile, outfile):
+    global FAILED
+    print("OVERRIDE")
+    FAILED += 1
+    if os.path.exists(outfile):
+        MoveFile(outfile, okfile)
 
 
 def _diff(outfile, okfile=None):
@@ -127,15 +130,15 @@ def _diff(outfile, okfile=None):
     ok = ReadFile(okfile)
     ok = remove_version(ok)
     if out != ok:
-        mark_failed(outfile)
+        if OVERRIDE:
+            override(okfile, outfile)
+        else:
+            mark_failed(outfile)
     else:
-        print("OK")
-        OK = OK + 1
-        os.remove(outfile)
+        mark_ok(outfile)
 
 
 def test(cmdline, outfile, okfile=None):
+    okfile = okfile or os.path.join(DIR_OK, outfile)
     _convert(cmdline)
-    if not okfile:
-        okfile = os.path.join(DIR_OK, outfile)
     _diff(outfile, okfile=okfile)

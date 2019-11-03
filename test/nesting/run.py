@@ -3,16 +3,14 @@
 # See also: ../run.py ../lib.py
 #
 
-import os, sys, glob
+import glob
+import os
+import sys
 
 sys.path.insert(0, "..")
 import lib
 
 del sys.path[0]
-
-# sux
-lib.OK = lib.FAILED = 0
-lib.ERROR_FILES = []
 
 # left files are generated from right ones (using smart filters)
 ALIASES = {"numlist": "list", "deflist": "list"}
@@ -22,6 +20,7 @@ FILTERS = {
     "deflist": [("pre", "^-( |$)", r":\1")],
     "numlist": [("pre", "^-( |$)", r"+\1")],
 }
+
 
 # convert FILTERS tuples to txt2tags pre/postproc rules
 def addFilters(filters):
@@ -57,5 +56,3 @@ def run():
     # clean up
     if os.path.isfile(lib.CONFIG_FILE):
         os.remove(lib.CONFIG_FILE)
-
-    return lib.OK, lib.FAILED, lib.ERROR_FILES

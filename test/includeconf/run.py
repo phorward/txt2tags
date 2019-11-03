@@ -3,16 +3,14 @@
 # See also: ../run.py ../lib.py
 #
 
-import os, sys, glob
+import glob
+import os
+import sys
 
 sys.path.insert(0, "..")
 import lib
 
 del sys.path[0]
-
-# sux
-lib.OK = lib.FAILED = 0
-lib.ERROR_FILES = []
 
 # Tests for the command line option -C
 # Note: --config-file is also tested automatically from these tests
@@ -45,8 +43,7 @@ tests = [
 
 def run():
 
-    ### First test the %!includeconf command
-
+    # First test the %!includeconf command.
     errors = [
         "includeconf-itself",
         "includeconf-not-found",
@@ -55,7 +52,7 @@ def run():
     ]
     unnumbered = ["includeconf-empty"]
 
-    # test all t2t files found
+    # Test all t2t files found.
     for infile in glob.glob("includeconf-*.t2t"):
         basename = infile.replace(".t2t", "")
         outfile = basename + ".html"
@@ -75,8 +72,7 @@ def run():
         if lib.initTest(basename, infile, outfile, okfile):
             lib.test(cmdline, outfile, okfile)
 
-    ### Now test -C and --config-file command line options
-
+    # Now test -C and --config-file command line options.
     errors = ["C-not-found", "C-text"]
     default_cmdline = ["-H -i body-only.t2t"]
     infile = "body-only.t2t"
@@ -114,5 +110,3 @@ def run():
     # clean up
     if os.path.isfile(lib.CONFIG_FILE):
         os.remove(lib.CONFIG_FILE)
-
-    return lib.OK, lib.FAILED, lib.ERROR_FILES

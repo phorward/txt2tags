@@ -10,12 +10,6 @@
 #
 ########################################################################
 #
-#   BORING CODE EXPLANATION AHEAD
-#
-# Just read it if you wish to understand how the txt2tags code works.
-#
-########################################################################
-#
 # The code that [1] parses the marked text is separated from the
 # code that [2] insert the target tags.
 #
@@ -52,13 +46,6 @@
 #
 ########################################################################
 
-# XXX Python coding warning
-# Avoid common mistakes:
-# - do NOT use newlist=list instead newlist=list[:]
-# - do NOT use newdic=dic   instead newdic=dic.copy()
-# - do NOT use dic[key]     instead dic.get(key)
-# - do NOT use del dic[key] without has_key() before
-
 # XXX Smart Image Align don't work if the image is a link
 # Can't fix that because the image is expanded together with the
 # link, at the linkbank filling moment. Only the image is passed
@@ -82,46 +69,20 @@
 
 from __future__ import print_function
 
+import collections
+import getopt
+import os
+import re
+import sys
+import time
 
 ##############################################################################
-
-# User config (1=ON, 0=OFF)
-
-USE_I18N = 1  # use gettext for i18ned messages?        (default is 1)
-COLOR_DEBUG = 1  # show debug messages in colors?          (default is 1)
-BG_LIGHT = 0  # your terminal background color is light (default is 0)
-HTML_LOWER = 0  # use lowercased HTML tags instead upper? (default is 0)
-
-##############################################################################
-
-
-# These are all the core Python modules used by txt2tags (KISS!)
-import re, os, sys, time, getopt
-
-# The CSV module is new in Python version 2.3
-try:
-    import csv
-except ImportError:
-    csv = None
 
 # Program information
 my_url = "http://txt2tags.org"
 my_name = "txt2tags"
 my_email = "jendrikseipp@gmail.com"
-__version__ = "3.1"
-
-# i18n - just use if available
-if USE_I18N:
-    try:
-        import gettext
-
-        # If your locale dir is different, change it here
-        cat = gettext.Catalog("txt2tags", localedir="/usr/share/locale/")
-        _ = cat.gettext
-    except:
-        _ = lambda x: x
-else:
-    _ = lambda x: x
+__version__ = "3.2"
 
 # FLAGS   : the conversion related flags  , may be used in %!options
 # OPTIONS : the conversion related options, may be used in %!options
@@ -146,9 +107,6 @@ FLAGS = {
     "toc-only": 0,
     "toc": 0,
     "rc": 1,
-    "css-sugar": 0,
-    "css-suggar": 0,
-    "css-inside": 0,
     "quiet": 0,
     "slides": 0,
 }
@@ -160,11 +118,7 @@ OPTIONS = {
     "outfile": "",
     "encoding": "",
     "config-file": "",
-    "split": 0,
     "lang": "",
-    "width": 0,
-    "height": 0,
-    "art-chars": "",
     "show-config-value": "",
 }
 ACTIONS = {
@@ -183,25 +137,23 @@ NO_MULTI_INPUT = ["dump-config", "dump-source"]
 CONFIG_KEYWORDS = ["target", "encoding", "style", "options", "preproc", "postproc"]
 
 TARGET_NAMES = {
-    "html": _("HTML page"),
-    "xhtml": _("XHTML page"),
-    "sgml": _("SGML document"),
-    "dbk": _("DocBook document"),
-    "tex": _("LaTeX document"),
-    "lout": _("Lout document"),
-    "man": _("UNIX Manual page"),
-    "mgp": _("MagicPoint presentation"),
-    "wiki": _("Wikipedia page"),
-    "gwiki": _("Google Wiki page"),
-    "doku": _("DokuWiki page"),
-    "pmw": _("PmWiki page"),
-    "moin": _("MoinMoin page"),
-    "pm6": _("PageMaker document"),
-    "txt": _("Plain Text"),
-    "art": _("ASCII Art text"),
-    "adoc": _("AsciiDoc document"),
-    "creole": _("Creole 1.0 document"),
-    "md": _("Markdown text"),
+    "html": "HTML page",
+    "sgml": "SGML document",
+    "dbk": "DocBook document",
+    "tex": "LaTeX document",
+    "lout": "Lout document",
+    "man": "UNIX Manual page",
+    "mgp": "MagicPoint presentation",
+    "wiki": "Wikipedia page",
+    "gwiki": "Google Wiki page",
+    "doku": "DokuWiki page",
+    "pmw": "PmWiki page",
+    "moin": "MoinMoin page",
+    "pm6": "PageMaker document",
+    "txt": "Plain Text",
+    "adoc": "AsciiDoc document",
+    "creole": "Creole 1.0 document",
+    "md": "Markdown text",
 }
 
 TARGETS = sorted(TARGET_NAMES)
@@ -211,16 +163,7 @@ VERBOSE = 0  # do not edit here, please use -v, -vv or -vvv
 QUIET = 0  # do not edit here, please use --quiet
 AUTOTOC = 1  # do not edit here, please use --no-toc or %%toc
 
-DFT_TEXT_WIDTH = 72  # do not edit here, please use --width
-DFT_SLIDE_WIDTH = 80  # do not edit here, please use --width
-DFT_SLIDE_HEIGHT = 25  # do not edit here, please use --height
-
-# ASCII Art config
-AA_KEYS = "corner border side bar1 bar2 level2 level3 level4 level5".split()
-AA_VALUES = '+-|-==-^"'  # do not edit here, please use --art-chars
-AA = dict(zip(AA_KEYS, AA_VALUES))
-AA_COUNT = 0
-AA_TITLE = ""
+DFT_TEXT_WIDTH = 72
 
 RC_RAW = []
 CMDLINE_RAW = []
@@ -231,13 +174,6 @@ regex = {}
 TAGS = {}
 rules = {}
 
-# Gui globals
-askopenfilename = None
-showinfo = None
-showwarning = None
-showerror = None
-
-lang = "english"
 TARGET = ""
 
 STDIN = STDOUT = "-"
@@ -245,60 +181,49 @@ MODULEIN = MODULEOUT = "-module-"
 ESCCHAR = "\x00"
 SEPARATOR = "\x01"
 LISTNAMES = {"-": "list", "+": "numlist", ":": "deflist"}
-LINEBREAK = {"default": "\n", "win": "\r\n", "mac": "\r"}
 
-# Platform specific settings
-LB = LINEBREAK.get(sys.platform[:3]) or LINEBREAK["default"]
-
-VERSIONSTR = _("%s version %s <%s>") % (my_name, __version__, my_url)
+VERSIONSTR = "%s version %s <%s>" % (my_name, __version__, my_url)
 
 USAGE = "\n".join(
     [
         "",
-        _("Usage: %s [OPTIONS] [infile.t2t ...]") % my_name,
+        "Usage: %s [OPTIONS] [infile.t2t ...]" % my_name,
         "",
-        _("      --targets       print a list of all the available targets and exit"),
-        _("  -t, --target=TYPE   set target document type. currently supported:"),
+        "      --targets       print a list of all the available targets and exit",
+        "  -t, --target=TYPE   set target document type. currently supported:",
         "                      %s," % ", ".join(TARGETS[:9]),
         "                      %s" % ", ".join(TARGETS[9:]),
-        _("  -i, --infile=FILE   set FILE as the input file name ('-' for STDIN)"),
-        _("  -o, --outfile=FILE  set FILE as the output file name ('-' for STDOUT)"),
-        _("      --encoding=ENC  set target file encoding (utf-8, iso-8859-1, etc)"),
-        _("      --toc           add an automatic Table of Contents to the output"),
-        _("      --toc-level=N   set maximum TOC level (depth) to N"),
-        _("      --toc-only      print the Table of Contents and exit"),
-        _("  -n, --enum-title    enumerate all titles as 1, 1.1, 1.1.1, etc"),
-        _("      --style=FILE    use FILE as the document style (like HTML CSS)"),
-        _("      --css-sugar     insert CSS-friendly tags for HTML/XHTML"),
-        _("      --css-inside    insert CSS file contents inside HTML/XHTML headers"),
-        _("  -H, --no-headers    suppress header and footer from the output"),
-        _("      --mask-email    hide email from spam robots. x@y.z turns <x (a) y z>"),
-        _(
-            "      --slides        format output as presentation slides (used by -t art)"
-        ),
-        _("      --width=N       set the output's width to N columns (used by -t art)"),
-        _("      --height=N      set the output's height to N rows (used by -t art)"),
-        _("  -C, --config-file=F read configuration from file F"),
-        _("  -q, --quiet         quiet mode, suppress all output (except errors)"),
-        _("  -v, --verbose       print informative messages during conversion"),
-        _("  -h, --help          print this help information and exit"),
-        _("  -V, --version       print program version and exit"),
-        _("      --dump-config   print all the configuration found and exit"),
-        _("      --dump-source   print the document source, with includes expanded"),
+        "  -i, --infile=FILE   set FILE as the input file name ('-' for STDIN)",
+        "  -o, --outfile=FILE  set FILE as the output file name ('-' for STDOUT)",
+        "      --encoding=ENC  set target file encoding (utf-8, iso-8859-1, etc)",
+        "      --toc           add an automatic Table of Contents to the output",
+        "      --toc-level=N   set maximum TOC level (depth) to N",
+        "      --toc-only      print the Table of Contents and exit",
+        "  -n, --enum-title    enumerate all titles as 1, 1.1, 1.1.1, etc",
+        "      --style=FILE    use FILE as the document style (like HTML CSS)",
+        "  -H, --no-headers    suppress header and footer from the output",
+        "      --mask-email    hide email from spam robots. x@y.z turns <x (a) y z>",
+        "  -C, --config-file=F read configuration from file F",
+        "  -q, --quiet         quiet mode, suppress all output (except errors)",
+        "  -v, --verbose       print informative messages during conversion",
+        "  -h, --help          print this help information and exit",
+        "  -V, --version       print program version and exit",
+        "      --dump-config   print all the configuration found and exit",
+        "      --dump-source   print the document source, with includes expanded",
         "",
-        _("Turn OFF options:"),
-        "     --no-css-inside, --no-css-sugar, --no-dump-config, --no-dump-source,",
+        "Turn OFF options:",
+        "     --no-dump-config, --no-dump-source,",
         "     --no-encoding, --no-enum-title, --no-headers, --no-infile,",
         "     --no-mask-email, --no-outfile, --no-quiet, --no-rc, --no-slides,",
         "     --no-style, --no-targets, --no-toc, --no-toc-only",
         "",
-        _("Example:"),
-        "     %s -t html --toc %s" % (my_name, _("file.t2t")),
+        "Example:",
+        "     %s -t html --toc %s" % (my_name, "file.t2t"),
         "",
-        _("By default, converted output is saved to 'infile.<target>'."),
-        _("Use --outfile to force an output file name."),
-        _("If  input file is '-', reads from STDIN."),
-        _("If output file is '-', dumps output to STDOUT."),
+        "By default, converted output is saved to 'infile.<target>'.",
+        "Use --outfile to force an output file name.",
+        "If  input file is '-', reads from STDIN.",
+        "If output file is '-', dumps output to STDOUT.",
         "",
         my_url,
         "",
@@ -318,9 +243,6 @@ USAGE = "\n".join(
 #  - use %% to represent a literal %
 #
 HEADER_TEMPLATE = {
-    "art": """
-Fake template to respect the general process.
-""",
     "txt": """\
 %(HEADER1)s
 %(HEADER2)s
@@ -333,76 +255,43 @@ Fake template to respect the general process.
 <author>%(HEADER2)s
 <date>%(HEADER3)s
 """,
+    # HTML5 reference code:
+    # https://github.com/h5bp/html5-boilerplate/blob/master/index.html
+    # https://github.com/murtaugh/HTML5-Reset/blob/master/index.html
     "html": """\
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
-<HTML>
-<HEAD>
-<META NAME="generator" CONTENT="http://txt2tags.org">
-<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=%(ENCODING)s">
-<LINK REL="stylesheet" TYPE="text/css" HREF="%(STYLE)s">
-<TITLE>%(HEADER1)s</TITLE>
-</HEAD><BODY BGCOLOR="white" TEXT="black">
-<CENTER>
-<H1>%(HEADER1)s</H1>
-<FONT SIZE="4"><I>%(HEADER2)s</I></FONT><BR>
-<FONT SIZE="4">%(HEADER3)s</FONT>
-</CENTER>
-""",
-    "htmlcss": """\
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
-<HTML>
-<HEAD>
-<META NAME="generator" CONTENT="http://txt2tags.org">
-<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=%(ENCODING)s">
-<LINK REL="stylesheet" TYPE="text/css" HREF="%(STYLE)s">
-<TITLE>%(HEADER1)s</TITLE>
-</HEAD>
-<BODY>
-
-<DIV CLASS="header" ID="header">
-<H1>%(HEADER1)s</H1>
-<H2>%(HEADER2)s</H2>
-<H3>%(HEADER3)s</H3>
-</DIV>
-""",
-    "xhtml": """\
-<?xml version="1.0"
-      encoding="%(ENCODING)s"
-?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"\
- "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html>
+<html>
 <head>
+<meta charset="%(ENCODING)s">
 <title>%(HEADER1)s</title>
-<meta name="generator" content="http://txt2tags.org" />
-<link rel="stylesheet" type="text/css" href="%(STYLE)s" />
-</head>
-<body bgcolor="white" text="black">
-<div align="center">
-<h1>%(HEADER1)s</h1>
-<h2>%(HEADER2)s</h2>
-<h3>%(HEADER3)s</h3>
-</div>
-""",
-    "xhtmlcss": """\
-<?xml version="1.0"
-      encoding="%(ENCODING)s"
-?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"\
- "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-<title>%(HEADER1)s</title>
-<meta name="generator" content="http://txt2tags.org" />
-<link rel="stylesheet" type="text/css" href="%(STYLE)s" />
+<meta name="generator" content="http://txt2tags.org">
+<link rel="stylesheet" href="%(STYLE)s">
+<style>
+body{background-color:#fff;color:#000;}
+hr{background-color:#000;border:0;color:#000;}
+hr.heavy{height:5px;}
+hr.light{height:1px;}
+img{border:0;display:block;}
+img.right{margin:0 0 0 auto;}
+img.center{border:0;margin:0 auto;}
+table th,table td{padding:4px;}
+.center,header{text-align:center;}
+table.center {margin-left:auto; margin-right:auto;}
+.right{text-align:right;}
+.left{text-align:left;}
+.tableborder,.tableborder td,.tableborder th{border:1px solid #000;}
+.underline{text-decoration:underline;}
+</style>
 </head>
 <body>
-
-<div class="header" id="header">
+<header>
+<hgroup>
 <h1>%(HEADER1)s</h1>
 <h2>%(HEADER2)s</h2>
 <h3>%(HEADER3)s</h3>
-</div>
+</hgroup>
+</header>
+<article>
 """,
     "dbk": """\
 <?xml version="1.0"
@@ -565,6 +454,7 @@ _%(HEADER3)s_
     # setup: @MakeContents { Yes }          # show TOC
     # setup: @SectionGap                    # break page at each section
 }
+assert set(HEADER_TEMPLATE) == set(TARGETS)
 
 
 ##############################################################################
@@ -584,9 +474,9 @@ def getTags(config):
     title3Open          title3Close
     title4Open          title4Close
     title5Open          title5Close
-    blocktitle1Open     blocktitle1Close
-    blocktitle2Open     blocktitle2Close
-    blocktitle3Open     blocktitle3Close
+    blockTitle1Open     blockTitle1Close
+    blockTitle2Open     blockTitle2Close
+    blockTitle3Open     blockTitle3Close
 
     paragraphOpen       paragraphClose
     blockVerbOpen       blockVerbClose
@@ -639,25 +529,7 @@ def getTags(config):
 
     # TIP: \a represents the current text inside the mark
     # TIP: ~A~, ~B~ and ~C~ are expanded to other tags parts
-
     alltags = {
-        "art": {
-            "title1": "\a",
-            "title2": "\a",
-            "title3": "\a",
-            "title4": "\a",
-            "title5": "\a",
-            "blockQuoteLine": "\t",
-            "listItemOpen": "- ",
-            "numlistItemOpen": "\a. ",
-            "bar1": aa_line(AA["bar1"], config["width"]),
-            "bar2": aa_line(AA["bar2"], config["width"]),
-            "url": "\a",
-            "urlMark": "\a (\a)",
-            "email": "\a",
-            "emailMark": "\a (\a)",
-            "img": "[\a]",
-        },
         "txt": {
             "title1": "  \a",
             "title2": "\t\a",
@@ -675,78 +547,78 @@ def getTags(config):
             "img": "[\a]",
         },
         "html": {
-            "paragraphOpen": "<P>",
-            "paragraphClose": "</P>",
-            "title1": "~A~<H1>\a</H1>",
-            "title2": "~A~<H2>\a</H2>",
-            "title3": "~A~<H3>\a</H3>",
-            "title4": "~A~<H4>\a</H4>",
-            "title5": "~A~<H5>\a</H5>",
-            "anchor": '<A NAME="\a"></A>\n',
-            "blockVerbOpen": "<PRE>",
-            "blockVerbClose": "</PRE>",
-            "blockQuoteOpen": "<BLOCKQUOTE>",
-            "blockQuoteClose": "</BLOCKQUOTE>",
-            "fontMonoOpen": "<CODE>",
-            "fontMonoClose": "</CODE>",
-            "fontBoldOpen": "<B>",
-            "fontBoldClose": "</B>",
-            "fontItalicOpen": "<I>",
-            "fontItalicClose": "</I>",
-            "fontUnderlineOpen": "<U>",
-            "fontUnderlineClose": "</U>",
-            "fontStrikeOpen": "<S>",
-            "fontStrikeClose": "</S>",
-            "listOpen": "<UL>",
-            "listClose": "</UL>",
-            "listItemOpen": "<LI>",
-            "numlistOpen": "<OL>",
-            "numlistClose": "</OL>",
-            "numlistItemOpen": "<LI>",
-            "deflistOpen": "<DL>",
-            "deflistClose": "</DL>",
-            "deflistItem1Open": "<DT>",
-            "deflistItem1Close": "</DT>",
-            "deflistItem2Open": "<DD>",
-            "bar1": "<HR NOSHADE SIZE=1>",
-            "bar2": "<HR NOSHADE SIZE=5>",
-            "url": '<A HREF="\a">\a</A>',
-            "urlMark": '<A HREF="\a">\a</A>',
-            "email": '<A HREF="mailto:\a">\a</A>',
-            "emailMark": '<A HREF="mailto:\a">\a</A>',
-            "img": '<IMG~A~ SRC="\a" BORDER="0" ALT="">',
-            "_imgAlignLeft": ' ALIGN="left"',
-            "_imgAlignCenter": ' ALIGN="middle"',
-            "_imgAlignRight": ' ALIGN="right"',
-            "tableOpen": '<TABLE~A~~B~ CELLPADDING="4">',
-            "tableClose": "</TABLE>",
-            "tableRowOpen": "<TR>",
-            "tableRowClose": "</TR>",
-            "tableCellOpen": "<TD~A~~S~>",
-            "tableCellClose": "</TD>",
-            "tableTitleCellOpen": "<TH~S~>",
-            "tableTitleCellClose": "</TH>",
-            "_tableBorder": ' BORDER="1"',
-            "_tableAlignCenter": ' ALIGN="center"',
-            "_tableCellAlignRight": ' ALIGN="right"',
-            "_tableCellAlignCenter": ' ALIGN="center"',
-            "_tableCellColSpan": ' COLSPAN="\a"',
-            "cssOpen": '<STYLE TYPE="text/css">',
-            "cssClose": "</STYLE>",
-            "comment": "<!-- \a -->",
-            "EOD": "</BODY></HTML>",
-        },
-        # TIP xhtml inherits all HTML definitions (lowercased)
-        # TIP http://www.w3.org/TR/xhtml1/#guidelines
-        # TIP http://www.htmlref.com/samples/Chapt17/17_08.htm
-        "xhtml": {
-            "listItemClose": "</li>",
-            "numlistItemClose": "</li>",
-            "deflistItem2Close": "</dd>",
-            "bar1": '<hr class="light" />',
-            "bar2": '<hr class="heavy" />',
             "anchor": '<a id="\a" name="\a"></a>\n',
-            "img": '<img~A~ src="\a" border="0" alt=""/>',
+            "bar1": '<hr class="light">',
+            "bar2": '<hr class="heavy">',
+            "blockQuoteClose": "</blockquote>",
+            "blockQuoteOpen": "<blockquote>",
+            "blockVerbClose": "</pre>",
+            "blockVerbOpen": "<pre>",
+            "bodyClose": "</div>",
+            "bodyOpen": '<div class="body" id="body">',
+            "comment": "<!-- \a -->",
+            "cssClose": "</style>",
+            "cssOpen": "<style>",
+            "deflistClose": "</dl>",
+            "deflistItem1Close": "</dt>",
+            "deflistItem1Open": "<dt>",
+            "deflistItem2Close": "</dd>",
+            "deflistItem2Open": "<dd>",
+            "deflistOpen": "<dl>",
+            "email": '<a href="mailto:\a">\a</a>',
+            "emailMark": '<a href="mailto:\a">\a</a>',
+            "EOD": "</article></body></html>",
+            "fontBoldClose": "</strong>",
+            "fontBoldOpen": "<strong>",
+            "fontItalicClose": "</em>",
+            "fontItalicOpen": "<em>",
+            "fontMonoClose": "</code>",
+            "fontMonoOpen": "<code>",
+            "fontStrikeClose": "</del>",
+            "fontStrikeOpen": "<del>",
+            "fontUnderlineClose": "</span>",
+            "fontUnderlineOpen": '<span class="underline">',
+            "_imgAlignCenter": ' class="center"',
+            "_imgAlignLeft": ' class="left"',
+            "_imgAlignRight": ' class="right"',
+            "img": '<img~a~ src="\a" alt="">',
+            "listClose": "</ul>",
+            "listItemClose": "</li>",
+            "listItemOpen": "<li>",
+            "listOpen": "<ul>",
+            "numlistClose": "</ol>",
+            "numlistItemClose": "</li>",
+            "numlistItemOpen": "<li>",
+            "numlistOpen": "<ol>",
+            "paragraphClose": "</p>",
+            "paragraphOpen": "<p>",
+            "_tableAlignCenter": ' style="margin-left: auto; margin-right: auto;"',
+            "_tableBorder": ' class="tableborder"',
+            "_tableCellAlignCenter": ' class="center"',
+            "_tableCellAlignRight": ' class="right"',
+            "tableCellClose": "</td>",
+            "_tableCellColSpan": ' colspan="\a"',
+            "tableCellOpen": "<td~a~~s~>",
+            "tableClose": "</table>",
+            "tableOpen": "<table~a~~b~>",
+            "tableRowClose": "</tr>",
+            "tableRowOpen": "<tr>",
+            "tableTitleCellClose": "</th>",
+            "tableTitleCellOpen": "<th~s~>",
+            "title1Close": "</section>",
+            "title1Open": "<section~A~>\n<h1>\a</h1>",
+            "title2Close": "</section>",
+            "title2Open": "<section~A~>\n<h2>\a</h2>",
+            "title3Close": "</section>",
+            "title3Open": "<section~A~>\n<h3>\a</h3>",
+            "title4Close": "</section>",
+            "title4Open": "<section~A~>\n<h4>\a</h4>",
+            "title5Close": "</section>",
+            "title5Open": "<section~A~>\n<h5>\a</h5>",
+            "tocClose": "</nav>",
+            "tocOpen": "<nav>",
+            "url": '<a href="\a">\a</a>',
+            "urlMark": '<a href="\a">\a</a>',
         },
         "sgml": {
             "paragraphOpen": "<p>",
@@ -843,11 +715,15 @@ def getTags(config):
             "urlMark": '<ulink url="\a">\a</ulink>',
             "email": "<email>\a</email>",
             "emailMark": "<email>\a</email>",
-            "img": '<mediaobject><imageobject><imagedata fileref="\a"/></imageobject></mediaobject>',
+            "img": (
+                '<mediaobject><imageobject><imagedata fileref="\a"/>'
+                "</imageobject></mediaobject>"
+            ),
             # '_imgAlignLeft'        : ''                                 , # Don't know
             # '_imgAlignCenter'      : ''                                 , # Don't know
             # '_imgAlignRight'       : ''                                 , # Don't know
-            # 'tableOpen'            : '<informaltable><tgroup cols=""><tbody>', # Don't work, need to know number of cols
+            # Don't work, need to know number of cols
+            # 'tableOpen'            : '<informaltable><tgroup cols=""><tbody>',
             # 'tableClose'           : '</tbody></tgroup></informaltable>' ,
             # 'tableRowOpen'         : '<row>'                             ,
             # 'tableRowClose'        : '</row>'                            ,
@@ -865,13 +741,13 @@ def getTags(config):
             "EOD": "</article>",
         },
         "tex": {
-            "title1": "~A~\section*{\a}",
+            "title1": "~A~\\section*{\a}",
             "title2": "~A~\\subsection*{\a}",
             "title3": "~A~\\subsubsection*{\a}",
             # title 4/5: DIRTY: para+BF+\\+\n
             "title4": "~A~\\paragraph{}\\textbf{\a}\\\\\n",
             "title5": "~A~\\paragraph{}\\textbf{\a}\\\\\n",
-            "numtitle1": "\n~A~\section{\a}",
+            "numtitle1": "\n~A~\\section{\a}",
             "numtitle2": "~A~\\subsection{\a}",
             "numtitle3": "~A~\\subsubsection{\a}",
             "anchor": "\\hypertarget{\a}{}\n",
@@ -906,7 +782,7 @@ def getTags(config):
             "deflistItem1Open": "\\item[",
             "deflistItem1Close": "]",
             "bar1": "\\hrulefill{}",
-            "bar2": "\\rule{\linewidth}{1mm}",
+            "bar2": "\\rule{\\linewidth}{1mm}",
             "url": "\\htmladdnormallink{\a}{\a}",
             "urlMark": "\\htmladdnormallink{\a}{\a}",
             "email": "\\htmladdnormallink{\a}{mailto:\a}",
@@ -986,15 +862,15 @@ def getTags(config):
             "_imgAlignLeft": "@LeftDisplay ",
             "_imgAlignRight": "@RightDisplay ",
             "_imgAlignCenter": "@CentredDisplay ",
-            # lout tables are *way* complicated, no support for now
-            #'tableOpen'            : '~A~@Tbl~B~\naformat{ @Cell A | @Cell B } {',
-            #'tableClose'           : '}'     ,
-            #'tableRowOpen'         : '@Rowa\n'       ,
-            #'tableTitleRowOpen'    : '@HeaderRowa'       ,
-            #'tableCenterAlign'     : '@CentredDisplay '         ,
-            #'tableCellOpen'        : '\a {'                     ,  # A, B, ...
-            #'tableCellClose'       : '}'                        ,
-            #'_tableBorder'         : '\nrule {yes}'             ,
+            # lout tables are *way* too complicated, no support for now
+            # 'tableOpen'            : '~A~@Tbl~B~\naformat{ @Cell A | @Cell B } {',
+            # 'tableClose'           : '}'     ,
+            # 'tableRowOpen'         : '@Rowa\n'       ,
+            # 'tableTitleRowOpen'    : '@HeaderRowa'       ,
+            # 'tableCenterAlign'     : '@CentredDisplay '         ,
+            # 'tableCellOpen'        : '\a {'                     ,  # A, B, ...
+            # 'tableCellClose'       : '}'                        ,
+            # '_tableBorder'         : '\nrule {yes}'             ,
             "comment": "# \a",
             # @MakeContents must be on the config file
             "TOC": "@DP @ContentsGoesHere @DP",
@@ -1150,14 +1026,6 @@ def getTags(config):
             "blockQuoteOpen": "->",
             "blockQuoteClose": "\n",
             # In-text font
-            "fontLargeOpen": "[+",
-            "fontLargeClose": "+]",
-            "fontLargerOpen": "[++",
-            "fontLargerClose": "++]",
-            "fontSmallOpen": "[-",
-            "fontSmallClose": "-]",
-            "fontLargerOpen": "[--",
-            "fontLargerClose": "--]",
             "fontMonoOpen": "@@",
             "fontMonoClose": "@@",
             "fontBoldOpen": "'''",
@@ -1173,8 +1041,6 @@ def getTags(config):
             "numlistItemLine": "#",
             "deflistItem1Open": ": ",
             "deflistItem1Close": ":",
-            "deflistItem2LineOpen": "::",
-            "deflistItem2LineClose": ":",
             # Verbatim block
             "blockVerbOpen": "[@",
             "blockVerbClose": "@]",
@@ -1187,9 +1053,9 @@ def getTags(config):
             "anchor": "[[#\a]]\n",
             # Image markup
             "img": "\a",
-            #'imgAlignLeft'         : '{{\a }}'       ,
-            #'imgAlignRight'        : '{{ \a}}'       ,
-            #'imgAlignCenter'       : '{{ \a }}'      ,
+            # 'imgAlignLeft'         : '{{\a }}'       ,
+            # 'imgAlignRight'        : '{{ \a}}'       ,
+            # 'imgAlignCenter'       : '{{ \a }}'      ,
             # Table attributes
             "tableTitleRowOpen": "||! ",
             "tableTitleRowClose": "||",
@@ -1229,7 +1095,8 @@ def getTags(config):
             "urlMark": "[\a \a]",
             "email": "mailto:\a",
             "emailMark": "[mailto:\a \a]",
-            # [[Image:foo.png|right|Optional alt/caption text]] (right, left, center, none)
+            # [[Image:foo.png|right|Optional alt/caption text]]
+            # (right, left, center, none)
             "img": "[[Image:\a~A~]]",
             "_imgAlignLeft": "|left",
             "_imgAlignCenter": "|center",
@@ -1303,7 +1170,7 @@ def getTags(config):
             "fontItalicOpen": "\\fI",
             "fontItalicClose": "\\fR",
             "listOpen": ".RS",
-            "listItemOpen": ".IP \(bu 3\n",
+            "listItemOpen": ".IP \\(bu 3\n",
             "listClose": ".RE\n.IP",
             "numlistOpen": ".RS",
             "numlistItemOpen": ".IP \a. 3\n",
@@ -1432,37 +1299,17 @@ def getTags(config):
                 "tableCellSep": " |",
             },
     }
+    assert set(alltags) == set(TARGETS)
 
-    # Exceptions for --css-sugar
-    if config["css-sugar"] and config["target"] in ("html", "xhtml"):
-        # Change just HTML because XHTML inherits it
-        htmltags = alltags["html"]
-        # Table with no cellpadding
-        htmltags["tableOpen"] = htmltags["tableOpen"].replace(' CELLPADDING="4"', "")
-        # DIVs
-        htmltags["tocOpen"] = '<DIV CLASS="toc">'
-        htmltags["tocClose"] = "</DIV>"
-        htmltags["bodyOpen"] = '<DIV CLASS="body" ID="body">'
-        htmltags["bodyClose"] = "</DIV>"
+    for target, tags in alltags.items():
+        for key in tags:
+            if key not in keys:
+                raise AssertionError("{} target has invalid key {}".format(target, key))
 
-    # Make the HTML -> XHTML inheritance
-    xhtml = alltags["html"].copy()
-    for key in xhtml.keys():
-        xhtml[key] = xhtml[key].lower()
-    # Some like HTML tags as lowercase, some don't... (headers out)
-    if HTML_LOWER:
-        alltags["html"] = xhtml.copy()
-    xhtml.update(alltags["xhtml"])
-    alltags["xhtml"] = xhtml.copy()
-
-    # Compose the target tags dictionary
-    tags = {}
-    target_tags = alltags[config["target"]].copy()
-
-    for key in keys:
-        tags[key] = ""  # create empty keys
-    for key in target_tags.keys():
-        tags[key] = maskEscapeChar(target_tags[key])  # populate
+    # Compose the target tags dictionary.
+    tags = collections.defaultdict(str)
+    for key, value in alltags[config["target"]].items():
+        tags[key] = maskEscapeChar(value)
 
     # Map strong line to pagebreak
     if rules["mapbar2pagebreak"] and tags["pageBreak"]:
@@ -1479,9 +1326,7 @@ def getTags(config):
 
 
 def getRules(config):
-    "Returns all the target-specific syntax rules"
-
-    ret = {}
+    """Return all the target-specific syntax rules."""
     allrules = [
         # target rules (ON/OFF)
         "linkable",  # target supports external links
@@ -1560,11 +1405,8 @@ def getRules(config):
             "blanksaroundtitle": 1,
             "blanksaroundnumtitle": 1,
         },
-        "art": {
-            # TIP art inherits all TXT rules
-        },
         "html": {
-            "indentverbblock": 1,
+            "indentverbblock": 0,
             "linkable": 1,
             "stylable": 1,
             "escapeurl": 1,
@@ -1581,7 +1423,7 @@ def getRules(config):
             "keeplistindent": 1,
             "keepquoteindent": 1,
             "barinsidequote": 1,
-            "autotocwithbars": 1,
+            "autotocwithbars": 0,
             "tablecellspannable": 1,
             "tablecellaligntype": "cell",
             # 'blanksaroundpara':1,
@@ -1594,9 +1436,7 @@ def getRules(config):
             "blanksaroundbar": 1,
             "blanksaroundtitle": 1,
             "blanksaroundnumtitle": 1,
-        },
-        "xhtml": {
-            # TIP xhtml inherits all HTML rules
+            "titleblocks": 1,
         },
         "sgml": {
             "linkable": 1,
@@ -1856,7 +1696,6 @@ def getRules(config):
             "keeplistindent": 1,
             "verbblockfinalescape": 1,
             # TODO add support for these
-            # maybe set a JOINNEXT char and do it on addLineBreaks()
             "notbreaklistopen": 1,
             "barinsidequote": 1,
             "autotocwithbars": 1,
@@ -1906,29 +1745,17 @@ def getRules(config):
             "blanksaroundtitle": 1,
         }
     }
+    assert set(rules_bank) == set(TARGETS)
 
-    # Exceptions for --css-sugar
-    if config["css-sugar"] and config["target"] in ("html", "xhtml"):
-        rules_bank["html"]["indentverbblock"] = 0
-        rules_bank["html"]["autotocwithbars"] = 0
+    for target, rules in rules_bank.items():
+        for rule in rules:
+            if rule not in allrules:
+                raise AssertionError(
+                    "{} target has invalid rule {}".format(target, rule)
+                )
 
-    # Get the target specific rules
-    if config["target"] == "xhtml":
-        myrules = rules_bank["html"].copy()  # inheritance
-        myrules.update(rules_bank["xhtml"])  # get XHTML specific
-    elif config["target"] == "art":
-        myrules = rules_bank["txt"].copy()  # inheritance
-        if config["slides"]:
-            myrules["blanksaroundtitle"] = 0
-            myrules["blanksaroundnumtitle"] = 0
-    else:
-        myrules = rules_bank[config["target"]].copy()
-
-    # Populate return dictionary
-    for key in allrules:
-        ret[key] = 0  # reset all
-    ret.update(myrules)  # get rules
-
+    ret = collections.defaultdict(int)
+    ret.update(rules_bank[config["target"]])
     return ret
 
 
@@ -1995,11 +1822,11 @@ def getRegexes():
     bank["title"] = re.compile(titskel % ("[=]{1,5}", "[^=](|.*[^=])"))
     bank["numtitle"] = re.compile(titskel % ("[+]{1,5}", "[^+](|.*[^+])"))
 
-    ### Complicated regexes begin here ;)
+    # Complicated regexes begin here ;)
     #
     # Textual descriptions on --help's style: [...] is optional, | is OR
 
-    ### First, some auxiliary variables
+    # First, some auxiliary variables
     #
 
     # [image.EXT]
@@ -2052,8 +1879,7 @@ def getRegexes():
     # Saving for future use
     bank["_urlskel"] = urlskel
 
-    ### And now the real regexes
-    #
+    # And now the real regexes
 
     bank["email"] = re.compile(patt_email, re.I)
 
@@ -2075,79 +1901,11 @@ def getRegexes():
     return bank
 
 
-### END OF regex nightmares
-
-################# functions for the ASCII Art backend ########################
-
-
-def aa_line(char, length):
-    return char * length
-
-
-def aa_box(txt, length):
-    len_txt = len(txt)
-    nspace = (length - len_txt - 4) // 2
-    line_box = " " * nspace + AA["corner"] + AA["border"] * (len_txt + 2) + AA["corner"]
-    # <----- nspace " " -----> "+" <----- len_txt+2 "-" -----> "+"
-    #                           +-------------------------------+
-    #                           | all theeeeeeeeeeeeeeeeee text |
-    # <----- nspace " " -----> "| " <--------- txt ---------> " |"
-    line_txt = " " * nspace + AA["side"] + " " + txt + " " + AA["side"]
-    return [line_box, line_txt, line_box]
-
-
-def aa_header(header_data, length, n, end):
-    header = [aa_line(AA["bar2"], length)]
-    header.extend([""] * n)
-    for h in "HEADER1", "HEADER2", "HEADER3":
-        if header_data[h]:
-            header.extend(aa_box(header_data[h], length))
-            header.extend([""] * n)
-    header.extend([""] * end)
-    header.append(aa_line(AA["bar2"], length))
-    return header
-
-
-def aa_slide(title, length):
-    res = [aa_line(AA["bar2"], length)]
-    res.append("")
-    res.append(title.center(length))
-    res.append("")
-    res.append(aa_line(AA["bar2"], length))
-    return res
-
-
-def aa_table(table):
-    data = [row[2:-2].split(" | ") for row in table]
-    n = max([len(line) for line in data])
-    data = [line + (n - len(line)) * [""] for line in data]
-    tab = []
-    for i in range(n):
-        tab.append([line[i] for line in data])
-    length = [max([len(el) for el in line]) for line in tab]
-    res = "+"
-    for i in range(n):
-        res = res + (length[i] + 2) * "-" + "+"
-    ret = []
-    for line in data:
-        aff = "|"
-        ret.append(res)
-        for j, el in enumerate(line):
-            aff = aff + " " + el + (length[j] - len(el) + 1) * " " + "|"
-        ret.append(aff)
-    ret.append(res)
-    return ret
-
-
-##############################################################################
+# END OF regex nightmares
 
 
 class error(Exception):
     pass
-
-
-def echo(msg):  # for quick debug
-    print("\033[32;1m%s\033[m" % msg)
 
 
 def Quit(msg=""):
@@ -2157,7 +1915,7 @@ def Quit(msg=""):
 
 
 def Error(msg):
-    msg = _("%s: Error: ") % my_name + msg
+    msg = "%s: Error: " % my_name + msg
     raise error(msg)
 
 
@@ -2167,14 +1925,14 @@ def getTraceback():
 
         etype, value, tb = sys.exc_info()
         return "".join(format_exception(etype, value, tb))
-    except:
+    except Exception:
         pass
 
 
 def getUnknownErrorMessage():
     msg = "%s\n%s (%s):\n\n%s" % (
-        _("Sorry! Txt2tags aborted by an unknown error."),
-        _("Please send the following Error Traceback to the author"),
+        "Sorry! Txt2tags aborted by an unknown error.",
+        "Please send the following Error Traceback to the author",
         my_email,
         getTraceback(),
     )
@@ -2188,59 +1946,44 @@ def Message(msg, level):
 
 
 def Debug(msg, id_=0, linenr=None):
-    "Show debug messages, categorized (colored or not)"
+    """Show debug messages, categorized."""
     if QUIET or not DEBUG:
         return
-    if int(id_) not in range(8):
-        id_ = 0
-    # 0:black 1:red 2:green 3:yellow 4:blue 5:pink 6:cyan 7:white ;1:light
     ids = ["INI", "CFG", "SRC", "BLK", "HLD", "GUI", "OUT", "DET"]
-    colors_bgdark = ["7;1", "1;1", "3;1", "6;1", "4;1", "5;1", "2;1", "7;1"]
-    colors_bglight = ["0", "1", "3", "6", "4", "5", "2", "0"]
     if linenr is not None:
         msg = "LINE %04d: %s" % (linenr, msg)
-    if COLOR_DEBUG:
-        if BG_LIGHT:
-            color = colors_bglight[id_]
-        else:
-            color = colors_bgdark[id_]
-        msg = "\033[3%sm%s\033[m" % (color, msg)
     print("++ %s: %s" % (ids[id_], msg))
 
 
-def Readfile(file_path, remove_linebreaks=0, ignore_error=0):
+def Readfile(file_path, remove_linebreaks=False, ignore_error=False):
     data = []
     if file_path == "-":
         try:
             data = sys.stdin.readlines()
-        except:
+        except Exception:
             if not ignore_error:
-                Error(_("You must feed me with data on STDIN!"))
+                Error("You must feed me with data on STDIN!")
     else:
         try:
             f = open(file_path)
             data = f.readlines()
             f.close()
-        except:
+        except Exception:
             if not ignore_error:
-                Error(_("Cannot read file:") + " " + file_path)
+                Error("Cannot read file:" + " " + file_path)
     if remove_linebreaks:
         data = [re.sub("[\n\r]+$", "", x) for x in data]
-    Message(_("File read (%d lines): %s") % (len(data), file_path), 2)
+    Message("File read (%d lines): %s" % (len(data), file_path), 2)
     return data
 
 
 def Savefile(file_path, lines):
     try:
         with open(file_path, "w") as f:
-            f.writelines(lines)
+            for line in lines:
+                f.write(line + "\n")
     except IOError:
-        Error(_("Cannot open file for writing:") + " " + file_path)
-
-
-def showdic(dic):
-    for k in dic.keys():
-        print("%15s : %s" % (k, dic[k]))
+        Error("Cannot open file for writing:" + " " + file_path)
 
 
 def dotted_spaces(txt=""):
@@ -2305,12 +2048,6 @@ class CommandLine:
             Optional 'ignore' and 'filter_' arguments are used to filter
             in or out specified keys.
 
-    compose_cmdline(dict) -> [Command line]
-            Compose a command line list from an already parsed config
-            dictionary, generated from RAW by ConfigMaster(). Use
-            this to compose an optimal command line for a group of
-            options.
-
     The get_raw_config() calls parse(), so the typical use of this
     class is:
 
@@ -2369,7 +2106,7 @@ class CommandLine:
         # TODO protect quotes contents -- Don't use it, pass cmdline as list
         return cmd_string.split()
 
-    def parse(self, cmdline=[]):
+    def parse(self, cmdline):
         "Check/Parse a command line list     TIP: no program name!"
         # Get the valid options
         short, long_ = self.short_opts, self.long_opts
@@ -2377,14 +2114,17 @@ class CommandLine:
         try:
             opts, args = getopt.getopt(cmdline, short, long_)
         except getopt.error as errmsg:
-            Error(_("%s (try --help)") % errmsg)
+            Error("%s (try --help)" % errmsg)
         return (opts, args)
 
-    def get_raw_config(self, cmdline=[], ignore=[], filter_=[], relative=0):
+    def get_raw_config(self, cmdline=None, ignore=None, filter_=None, relative=False):
         "Returns the options/arguments found as RAW config"
 
         if not cmdline:
             return []
+        ignore = ignore or []
+        filter_ = filter_ or []
+
         ret = []
 
         # We need lists, not strings (such as from %!options)
@@ -2399,9 +2139,6 @@ class CommandLine:
 
             # Remove leading - and --
             name = re.sub("^--?", "", name)
-
-            # Fix old misspelled --suGGar, --no-suGGar
-            name = name.replace("suggar", "sugar")
 
             # Translate short option to long
             if len(name) == 1:
@@ -2438,60 +2175,6 @@ class CommandLine:
         ret.append(["all", "realcmdline", cmdline])
 
         return ret
-
-    def compose_cmdline(self, conf={}, no_check=0):
-        "compose a full (and diet) command line from CONF dict"
-        if not conf:
-            return []
-        args = []
-        dft_options = OPTIONS.copy()
-        cfg = conf.copy()
-        valid_opts = self.all_options + self.all_flags
-        use_short = {"no-headers": "H", "enum-title": "n"}
-        # Remove useless options
-        if not no_check and cfg.get("toc-only"):
-            if "no-headers" in cfg:
-                del cfg["no-headers"]
-            if "outfile" in cfg:
-                del cfg["outfile"]  # defaults to STDOUT
-            if cfg.get("target") == "txt":
-                del cfg["target"]  # already default
-            args.append("--toc-only")  # must be the first
-            del cfg["toc-only"]
-        # Add target type
-        if "target" in cfg:
-            args.append("-t " + cfg["target"])
-            del cfg["target"]
-        # Add other options
-        for key in cfg.keys():
-            if key not in valid_opts:
-                continue  # may be a %!setting
-            if key == "outfile" or key == "infile":
-                continue  # later
-            val = cfg[key]
-            if not val:
-                continue
-            # Default values are useless on cmdline
-            if val == dft_options.get(key):
-                continue
-            # -short format
-            if key in use_short.keys():
-                args.append("-" + use_short[key])
-                continue
-            # --long format
-            if key in self.all_flags:  # add --option
-                args.append("--" + key)
-            else:  # add --option=value
-                args.append("--%s=%s" % (key, val))
-        # The outfile using -o
-        if "outfile" in cfg and cfg["outfile"] != dft_options.get("outfile"):
-            args.append("-o " + cfg["outfile"])
-        # Place input file(s) always at the end
-        if "infile" in cfg:
-            args.append(" ".join(cfg["infile"]))
-        # Return as a nice list
-        Debug("Diet command line: %s" % " ".join(args), 1)
-        return args
 
 
 ##############################################################################
@@ -2533,7 +2216,7 @@ class SourceDocument:
         header info, so the Head Area is just the first line.
     """
 
-    def __init__(self, filename="", contents=[]):
+    def __init__(self, filename="", contents=None):
         self.areas = ["head", "conf", "body"]
         self.arearef = []
         self.areas_fancy = ""
@@ -2577,7 +2260,7 @@ class SourceDocument:
 
     def scan_file(self, filename):
         Debug("source file: %s" % filename)
-        Message(_("Loading source document"), 1)
+        Message("Loading source document", 1)
         buf = Readfile(filename, remove_linebreaks=1)
         self.scan(buf)
 
@@ -2585,7 +2268,7 @@ class SourceDocument:
         "Run through source file and identify head/conf/body areas"
         buf = lines
         if len(buf) == 0:
-            Error(_("The input file is empty: %s") % self.filename)
+            Error("The input file is empty: %s" % self.filename)
         cfg_parser = ConfigLines().parse_line
         buf.insert(0, "")  # text start at pos 1
         ref = [1, 4, 0]
@@ -2610,7 +2293,6 @@ class SourceDocument:
                 or rgx["macros"].match(buf[i])  # ... not comment or
                 or rgx["toc"].match(buf[i])  # ... %%macro
                 or cfg_parser(buf[i], "include")[1]  # ... %%toc
-                or cfg_parser(buf[i], "csv")[1]  # ... %!include  # ... %!csv
             ):
                 ref[2] = i
                 break
@@ -2629,13 +2311,13 @@ class SourceDocument:
             " ".join(self.areas),
             " ".join(map(str, [x or "" for x in ref])),
         )
-        Message(_("Areas found: %s") % self.areas_fancy, 2)
+        Message("Areas found: %s" % self.areas_fancy, 2)
 
     def get_raw_config(self):
         "Handy method to get the CONF area RAW config (if any)"
         if not self.areas.count("conf"):
             return []
-        Message(_("Scanning source document CONF area"), 1)
+        Message("Scanning source document CONF area", 1)
         raw = ConfigLines(
             file_=self.filename, lines=self.get("conf"), first_line=self.arearef[1]
         ).get_raw_config()
@@ -2692,8 +2374,8 @@ class ConfigMaster:
         {'enum-title': 1, 'headers': 0}
     """
 
-    def __init__(self, raw=[], target=""):
-        self.raw = raw
+    def __init__(self, raw=None, target=""):
+        self.raw = raw or []
         self.target = target
         self.parsed = {}
         self.dft_options = OPTIONS.copy()
@@ -2703,7 +2385,7 @@ class ConfigMaster:
         self.defaults = self._get_defaults()
         self.off = self._get_off()
         self.incremental = ["verbose"]
-        self.numeric = ["toc-level", "split", "width", "height"]
+        self.numeric = ["toc-level"]
         self.multi = ["infile", "preproc", "postproc", "options", "style"]
 
     def _get_defaults(self):
@@ -2724,11 +2406,11 @@ class ConfigMaster:
         off = {}
         for key in self.defaults.keys():
             kind = type(self.defaults[key])
-            if kind == type(9):
+            if kind == int:
                 off[key] = 0
-            elif kind == type(""):
+            elif kind == str:
                 off[key] = ""
-            elif kind == type([]):
+            elif kind == list:
                 off[key] = []
             else:
                 Error("ConfigMaster: %s: Unknown type" % key)
@@ -2757,7 +2439,7 @@ class ConfigMaster:
             ignoreme.remove("dump-source")
             ignoreme.remove("targets")
             raw_opts = CommandLine().get_raw_config(val, ignore=ignoreme)
-            for target, key, val in raw_opts:
+            for _target, key, val in raw_opts:
                 self.add(key, val)
             return
         # The no- prefix turns OFF this key
@@ -2792,9 +2474,9 @@ class ConfigMaster:
         else:
             self.parsed[key] = val
         fancykey = dotted_spaces("%12s" % key)
-        Message(_("Added config %s : %s") % (fancykey, val), 3)
+        Message("Added config %s : %s" % (fancykey, val), 3)
 
-    def get_outfile_name(self, config={}):
+    def get_outfile_name(self, config):
         "Dirname is the same for {in,out}file"
         infile, outfile = config["sourcefile"], config["outfile"]
         if (
@@ -2808,7 +2490,7 @@ class ConfigMaster:
         if infile == MODULEIN and not outfile:
             outfile = MODULEOUT
         if not outfile and (infile and config.get("target")):
-            basename = re.sub("\.(txt|t2t)$", "", infile)
+            basename = re.sub(r"\.(txt|t2t)$", "", infile)
             outfile = "%s.%s" % (basename, config["target"])
         Debug(" infile: '%s'" % infile, 1)
         Debug("outfile: '%s'" % outfile, 1)
@@ -2816,7 +2498,6 @@ class ConfigMaster:
 
     def sanity(self, config):
         "Basic config sanity checking"
-        global AA
         if not config:
             return {}
         target = config.get("target")
@@ -2830,27 +2511,25 @@ class ConfigMaster:
         # We *need* a target
         if not target:
             Error(
-                _("No target specified (try --help)")
+                "No target specified (try --help)."
                 + "\n\n"
-                + _(
-                    "Please inform a target using the -t option or the %!target command."
-                )
+                + "Please select a target using the -t option or the %!target command."
                 + "\n"
-                + _("Example:")
-                + " %s -t html %s" % (my_name, _("file.t2t"))
+                + "Example:"
+                + " %s -t html %s" % (my_name, "file.t2t")
                 + "\n\n"
-                + _("Run 'txt2tags --targets' to see all the available targets.")
+                + "Run 'txt2tags --targets' to see all available targets."
             )
         # And of course, an infile also
         # TODO#1: It seems that this checking is never reached
         if not config.get("infile"):
-            Error(_("Missing input file (try --help)"))
+            Error("Missing input file (try --help)")
         # Is the target valid?
         if not TARGETS.count(target):
             Error(
-                _("Invalid target '%s'") % target
+                "Invalid target '%s'" % target
                 + "\n\n"
-                + _("Run 'txt2tags --targets' to see all the available targets.")
+                + "Run 'txt2tags --targets' to see all the available targets."
             )
         # Ensure all keys are present
         empty = self.defaults.copy()
@@ -2862,36 +2541,12 @@ class ConfigMaster:
                 try:
                     config[key] = int(config[key])
                 except ValueError:
-                    Error(_("--%s value must be a number") % key)
-        # Check split level value
-        if config["split"] not in (0, 1, 2):
-            Error(_("Option --split must be 0, 1 or 2"))
-        # Slides needs width and height
-        if config["slides"] and target == "art":
-            if not config["width"]:
-                config["width"] = DFT_SLIDE_WIDTH
-            if not config["height"]:
-                config["height"] = DFT_SLIDE_HEIGHT
-        # ASCII Art needs a width
-        if target == "art" and not config["width"]:
-            config["width"] = DFT_TEXT_WIDTH
-        # Check/set user ASCII Art formatting characters
-        if config["art-chars"]:
-            if len(config["art-chars"]) != len(AA_VALUES):
-                Error(
-                    _("--art-chars: Expected %i chars, got %i")
-                    % (len(AA_VALUES), len(config["art-chars"]))
-                )
-            else:
-                AA = dict(zip(AA_KEYS, config["art-chars"]))
+                    Error("--%s value must be a number" % key)
         # --toc-only is stronger than others
         if config["toc-only"]:
             config["headers"] = 0
             config["toc"] = 0
-            config["split"] = 0
             config["outfile"] = config["outfile"] or STDOUT
-        # Splitting is disable for now (future: HTML only, no STDOUT)
-        config["split"] = 0
         # Restore target
         config["target"] = target
         # Set output file name
@@ -2900,15 +2555,15 @@ class ConfigMaster:
         if os.path.abspath(config["sourcefile"]) == os.path.abspath(
             config["outfile"]
         ) and config["outfile"] not in [STDOUT, MODULEOUT]:
-            Error(_("Input and Output files are the same: %s") % config["outfile"])
+            Error("Input and Output files are the same: %s" % config["outfile"])
         return config
 
     def parse(self):
         "Returns the parsed config for the current target"
         raw = self.get_target_raw()
-        for target, key, value in raw:
+        for _target, key, value in raw:
             self.add(key, value)
-        Message(_("Added the following keys: %s") % ", ".join(sorted(self.parsed)), 2)
+        Message("Added the following keys: %s" % ", ".join(sorted(self.parsed)), 2)
         return self.parsed.copy()
 
     def find_value(self, key="", target=""):
@@ -2955,9 +2610,9 @@ class ConfigLines:
             target, key, value = ConfigLines().parse_line(body_line)
     """
 
-    def __init__(self, file_="", lines=[], first_line=1):
+    def __init__(self, file_="", lines=None, first_line=1):
         self.file = file_ or "NOFILE"
-        self.lines = lines
+        self.lines = lines or []
         self.first_line = first_line
 
     def load_lines(self):
@@ -2971,7 +2626,7 @@ class ConfigLines:
         "Read a Config File contents, aborting on invalid line"
         if not filename:
             return []
-        errormsg = _("Invalid CONFIG line on %s") + "\n%03d:%s"
+        errormsg = "Invalid CONFIG line on %s" + "\n%03d:%s"
         lines = Readfile(filename, remove_linebreaks=1)
         # Sanity: try to find invalid config lines
         for i in range(len(lines)):
@@ -3000,20 +2655,20 @@ class ConfigLines:
         first = self.first_line
         for i in range(len(self.lines)):
             line = self.lines[i]
-            Message(_("Processing line %03d: %s") % (first + i, line), 2)
+            Message("Processing line %03d: %s" % (first + i, line), 2)
             target, key, val = self.parse_line(line)
             if not key:
                 continue  # no config on this line
             if key == "includeconf":
-                err = _("A file cannot include itself (loop!)")
+                err = "A file cannot include itself (loop!)"
                 if val == self.file:
                     Error("%s: %%!includeconf: %s" % (err, self.file))
                 more_raw = self.include_config_file(val)
                 ret.extend(more_raw)
-                Message(_("Finished Config file inclusion: %s") % val, 2)
+                Message("Finished Config file inclusion: %s" % val, 2)
             else:
                 ret.append([target, key, val])
-                Message(_("Added %s") % key, 3)
+                Message("Added %s" % key, 3)
         return ret
 
     def parse_line(self, line="", keyname="", target=""):
@@ -3026,7 +2681,7 @@ class ConfigLines:
         re_target = target or "[a-z]*"
         # XXX TODO <value>\S.+?  requires TWO chars, breaks %!include:a
         cfgregex = re.compile(
-            """
+            r"""
                 ^%%!\s*               # leading id with opt spaces
                 (?P<name>%s)\s*       # config name
                 (\((?P<target>%s)\))? # optional target spec inside ()
@@ -3038,7 +2693,7 @@ class ConfigLines:
             re.I + re.VERBOSE,
         )
         prepostregex = re.compile(
-            """
+            r"""
                                       # ---[ PATTERN ]---
                 ^( "([^"]*)"          # "double quoted" or
                 | '([^']*)'           # 'single quoted' or
@@ -3068,7 +2723,7 @@ class ConfigLines:
 
         # %!keyword(target) not allowed for these
         if name in no_target and match.group("target"):
-            Error(_("You can't use (target) with %s") % ("%!" + name) + "\n%s" % line)
+            Error("You can't use (target) with %s" % ("%!" + name) + "\n%s" % line)
 
         # Force no_target keywords to be valid for all targets
         if name in no_target:
@@ -3125,23 +2780,22 @@ class MaskMaster:
         while True:
             try:
                 t = regex["tagged"].search(line).start()
-            except:
+            except Exception:
                 t = -1
 
             try:
                 r = regex["raw"].search(line).start()
-            except:
+            except Exception:
                 r = -1
 
             try:
                 v = regex["fontMono"].search(line).start()
-            except:
+            except Exception:
                 v = -1
 
             # Protect tagged text
             if t >= 0 and (r == -1 or t < r) and (v == -1 or t < v):
                 txt = regex["tagged"].search(line).group(1)
-                ## JS
                 if TARGET == "tex":
                     txt = txt.replace("_", "vvvUnderscoreInTaggedTextvvv")
                 self.taggedbank.append(txt)
@@ -3151,7 +2805,6 @@ class MaskMaster:
             elif r >= 0 and (t == -1 or r < t) and (v == -1 or r < v):
                 txt = regex["raw"].search(line).group(1)
                 txt = doEscape(TARGET, txt)
-                ## JS
                 if TARGET == "tex":
                     txt = txt.replace("_", "vvvUnderscoreInRawTextvvv")
                 self.rawbank.append(txt)
@@ -3254,7 +2907,6 @@ class TitleMaster:
         self.tag_hold = []
         self.last_level = 0
         self.count_id = ""
-        self.user_labels = {}
         self.anchor_count = 0
         self.anchor_prefix = "toc"
 
@@ -3425,14 +3077,13 @@ class TitleMaster:
 
     def get(self):
         "Returns the tagged title as a list."
-        global AA_TITLE
         ret = []
 
         # Maybe some anchoring before?
         anchor = self._get_tagged_anchor()
         self.tag = regex["_anchor"].sub(anchor, self.tag)
 
-        ### Compose & escape title text (TOC uses unescaped)
+        # Compose & escape title text (TOC uses unescaped)
         full_title = self._get_full_title_text()
 
         # Close previous section area
@@ -3450,19 +3101,6 @@ class TitleMaster:
             if isinstance(full_title, bytes):
                 full_title = full_title.decode("utf-8")
             ret.append(regex["x"].sub("=" * len(full_title), self.tag))
-        elif TARGET == "art" and self.level == 1:
-            if CONF["slides"]:
-                AA_TITLE = tagged
-            else:
-                if BLOCK.count > 1:
-                    ret.append("")  # blank line before
-                ret.extend(aa_box(tagged, CONF["width"]))
-        elif TARGET == "art":
-            level = "level" + str(self.level)
-            if BLOCK.count > 1:
-                ret.append("")  # blank line before
-            ret.append(tagged)
-            ret.append(AA[level] * len(full_title))
         else:
             ret.append(tagged)
         return ret
@@ -3490,7 +3128,7 @@ class TitleMaster:
 
             # TOC will be plain text (no links)
             else:
-                if TARGET in ["txt", "man", "art"]:
+                if TARGET in ["txt", "man"]:
                     # For these, the list is not necessary, just dump the text
                     tocitem = '%s""%s""' % (indent, id_txt)
                 else:
@@ -3568,7 +3206,7 @@ class TableMaster:
         ret = []
         for cell in cells:
             span = 1
-            m = re.search("\a(\|+)$", cell)
+            m = re.search(r"\a(\|+)$", cell)
             if m:
                 span = len(m.group(1)) + 1
             ret.append(span)
@@ -3683,7 +3321,7 @@ class TableMaster:
         if line[1] == "|":
             ret["title"] = 1
         # Detect border mark and normalize the EOL
-        m = re.search(" (\|+) *$", line)
+        m = re.search(r" (\|+) *$", line)
         if m:
             line = line + " "
             ret["border"] = 1
@@ -3692,13 +3330,13 @@ class TableMaster:
         # Delete table mark
         line = regex["table"].sub("", line)
         # Detect colspan  | foo | bar baz |||
-        line = re.sub(" (\|+)\| ", "\a\\1 | ", line)
+        line = re.sub(r" (\|+)\| ", "\a\\1 | ", line)
         # Split cells (the last is fake)
         ret["cells"] = line.split(" | ")[:-1]
         # Find cells span
         ret["cellspan"] = self._get_cell_span(ret["cells"])
         # Remove span ID
-        ret["cells"] = [re.sub("\a\|+$", "", x) for x in ret["cells"]]
+        ret["cells"] = [re.sub(r"\a\|+$", "", x) for x in ret["cells"]]
         # Find cells align
         ret["cellalign"] = self._get_cell_align(ret["cells"])
         # Hooray!
@@ -3736,10 +3374,7 @@ class TableMaster:
         # Add row separator tags between lines
         tagged_rows = []
         if rowsep:
-            #!py15
-            # tagged_rows = map(lambda x:x+rowsep, tagged_cells)
-            for cell in tagged_cells:
-                tagged_rows.append(cell + rowsep)
+            tagged_rows = [cell + rowsep for cell in tagged_cells]
             # Remove last rowsep, because the table is over
             tagged_rows[-1] = tagged_rows[-1].replace(rowsep, "")
         # Add row BEGIN/END tags for each line
@@ -3892,8 +3527,6 @@ class BlockMaster:
         return ret
 
     def blockout(self):
-        global AA_COUNT
-
         if not self.BLK:
             Error("No block to pop")
         blockname = self.BLK.pop()
@@ -3922,33 +3555,6 @@ class BlockMaster:
         if result:
             self.last = blockname
             Debug("BLOCK: %s" % result, 6)
-
-        # ASCII Art processing
-        if (
-            TARGET == "art"
-            and CONF["slides"]
-            and not CONF["toc-only"]
-            and not CONF.get("art-no-title")
-        ):
-            n = (CONF["height"] - 1) - (AA_COUNT % (CONF["height"] - 1) + 1)
-            if n < len(result) and not (
-                TITLE.level == 1 and blockname in ["title", "numtitle"]
-            ):
-                result = (
-                    ([""] * n)
-                    + [aa_line(AA["bar1"], CONF["width"])]
-                    + aa_slide(AA_TITLE, CONF["width"])
-                    + [""]
-                    + result
-                )
-            if blockname in ["title", "numtitle"] and TITLE.level == 1:
-                aa_title = aa_slide(AA_TITLE, CONF["width"]) + [""]
-                if AA_COUNT:
-                    aa_title = (
-                        ([""] * n) + [aa_line(AA["bar2"], CONF["width"])] + aa_title
-                    )
-                result = aa_title + result
-            AA_COUNT += len(result)
 
         return result
 
@@ -3979,16 +3585,6 @@ class BlockMaster:
         # The blank line after the block is always added
         if where == "after" and rules["blanksaround" + blockname]:
             return True
-
-        # # No blank before if it's the first block of the body
-        # elif where == 'before' \
-        #       and BLOCK.count == 1:
-        #       return False
-
-        # # No blank before if it's the first block of this level (nested)
-        # elif where == 'before' \
-        #       and self.count == 1:
-        #       return False
 
         # The blank line before the block is only added if
         # the previous block haven't added a blank line
@@ -4050,18 +3646,6 @@ class BlockMaster:
         # Blank line after?
         if self._should_add_blank_line("after", "para"):
             result.append("")
-
-        # Very very very very very very very very very UGLY fix
-        # Needed because <center> can't appear inside <p>
-        try:
-            if (
-                len(lines) == 1
-                and TARGET in ("html", "xhtml")
-                and re.match("^\s*<center>.*</center>\s*$", lines[0])
-            ):
-                result = [lines[0]]
-        except:
-            pass
 
         return result
 
@@ -4163,7 +3747,7 @@ class BlockMaster:
 
         # Get contents
         for item in self.hold():
-            if type(item) == type([]):
+            if isinstance(item, list):
                 result.extend(item)  # subquotes
             else:
                 item = regex["quote"].sub("", item)  # del TABs
@@ -4273,7 +3857,7 @@ class BlockMaster:
             # Tag it
             item[0] = self._last_escapes(item[0])
             if name == "deflist":
-                z, term, rest = item[0].split(SEPARATOR, 2)
+                _, term, rest = item[0].split(SEPARATOR, 2)
                 item[0] = rest
                 if not item[0]:
                     del item[0]  # to avoid <p>
@@ -4285,7 +3869,7 @@ class BlockMaster:
 
             # Process next lines for this item (if any)
             for line in item:
-                if type(line) == type([]):  # sublist inside
+                if isinstance(line, list):  # sublist inside
                     listbody.extend(line)
                 else:
                     line = self._last_escapes(line)
@@ -4340,7 +3924,7 @@ class BlockMaster:
 
 
 class MacroMaster:
-    def __init__(self, config={}):
+    def __init__(self, config=None):
         self.name = ""
         self.config = config or CONF
         self.infile = self.config["sourcefile"]
@@ -4378,7 +3962,7 @@ class MacroMaster:
         elif flag == "f":
             x = info["name"]
         elif flag == "F":
-            x = re.sub("\.[^.]*$", "", info["name"])
+            x = re.sub(r"\.[^.]*$", "", info["name"])
         elif flag == "d":
             x = info["dir"]
         elif flag == "D":
@@ -4386,7 +3970,7 @@ class MacroMaster:
         elif flag == "p":
             x = info["path"]
         elif flag == "e":
-            x = re.search(".(\.([^.]+))?$", info["name"]).group(2) or ""
+            x = re.search(r".(\.([^.]+))?$", info["name"]).group(2) or ""
         # TODO simpler way for %e ?
         else:
             x = "%" + flag  # false alarm
@@ -4441,23 +4025,23 @@ def listTargets():
 
 
 def dumpConfig(source_raw, parsed_config):
-    onoff = {1: _("ON"), 0: _("OFF")}
+    onoff = {1: "ON", 0: "OFF"}
     data = [
-        (_("RC file"), RC_RAW),
-        (_("source document"), source_raw),
-        (_("command line"), CMDLINE_RAW),
+        ("RC file", RC_RAW),
+        ("source document", source_raw),
+        ("command line", CMDLINE_RAW),
     ]
     # First show all RAW data found
     for label, cfg in data:
-        print(_("RAW config for %s") % label)
+        print("RAW config for %s" % label)
         for target, key, val in cfg:
             target = "(%s)" % target
             key = dotted_spaces("%-14s" % key)
-            val = val or _("ON")
+            val = val or "ON"
             print("  %-8s %s: %s" % (target, key, val))
         print()
     # Then the parsed results of all of them
-    print(_("Full PARSED config"))
+    print("Full PARSED config")
     keys = list(parsed_config.keys())
     keys.sort()  # sorted
     for key in keys:
@@ -4469,7 +4053,7 @@ def dumpConfig(source_raw, parsed_config):
         if key in list(FLAGS.keys()) or key in list(ACTIONS.keys()):
             val = onoff.get(val) or val
         # List beautifier
-        if type(val) == type([]):
+        if isinstance(val, list):
             if key == "options":
                 sep = " "
             else:
@@ -4477,7 +4061,7 @@ def dumpConfig(source_raw, parsed_config):
             val = sep.join(val)
         print("%25s: %s" % (dotted_spaces("%-14s" % key), val))
     print()
-    print(_("Active filters"))
+    print("Active filters")
     for filter_ in ["preproc", "postproc"]:
         for rule in parsed_config.get(filter_) or []:
             print(
@@ -4499,16 +4083,14 @@ def finish_him(outlist, config):
 
     # Apply PostProc filters
     if config["postproc"]:
-        filters = compile_filters(
-            config["postproc"], _("Invalid PostProc filter regex")
-        )
+        filters = compile_filters(config["postproc"], "Invalid PostProc filter regex")
         postoutlist = []
-        errmsg = _("Invalid PostProc filter replacement")
+        errmsg = "Invalid PostProc filter replacement"
         for line in outlist:
             for rgx, repl in filters:
                 try:
                     line = rgx.sub(repl, line)
-                except:
+                except Exception:
                     Error("%s: '%s'" % (errmsg, repl))
             postoutlist.append(line)
         outlist = postoutlist[:]
@@ -4519,21 +4101,9 @@ def finish_him(outlist, config):
         for line in outlist:
             print(line)
     else:
-        Savefile(outfile, addLineBreaks(outlist))
+        Savefile(outfile, outlist)
         if not QUIET:
-            print(_("%s wrote %s") % (my_name, outfile))
-
-    if config["split"]:
-        if not QUIET:
-            print("--- html...")
-        sgml2html = "sgml2html -s %s -l %s %s" % (
-            config["split"],
-            config["lang"] or lang,
-            outfile,
-        )
-        if not QUIET:
-            print("Running system command:", sgml2html)
-        os.system(sgml2html)
+            print("%s wrote %s" % (my_name, outfile))
 
 
 def toc_inside_body(body, toc, config):
@@ -4564,11 +4134,7 @@ def toc_tagger(toc, config):
         fakeconf["mask-email"] = 0
         fakeconf["preproc"] = []
         fakeconf["postproc"] = []
-        fakeconf["css-sugar"] = 0
-        fakeconf[
-            "art-no-title"
-        ] = 1  # needed for --toc and --slides together, avoids slide title before TOC
-        ret, foo = convert(toc, fakeconf)
+        ret, _ = convert(toc, fakeconf)
         set_global_config(config)  # restore config
     # Our TOC list is not needed, the target already knows how to do a TOC
     elif config["toc"] and TAGS["TOC"]:
@@ -4585,13 +4151,6 @@ def toc_formatter(toc, config):
         return []  # TOC disabled
     ret = toc
 
-    # Art: An automatic "Table of Contents" header is added to the TOC slide
-    if config["target"] == "art" and config["slides"]:
-        n = (config["height"] - 1) - (len(toc) + 6) % (config["height"] - 1)
-        toc = aa_slide(_("Table of Contents"), config["width"]) + toc + ([""] * n)
-        toc.append(aa_line(AA["bar2"], config["width"]))
-        return toc
-
     # TOC open/close tags (if any)
     if TAGS["tocOpen"]:
         ret.insert(0, TAGS["tocOpen"])
@@ -4604,11 +4163,7 @@ def toc_formatter(toc, config):
             para = TAGS["paragraphOpen"] + TAGS["paragraphClose"]
             bar = regex["x"].sub("-" * DFT_TEXT_WIDTH, TAGS["bar1"])
             tocbar = [para, bar, para]
-            if config["target"] == "art" and config["headers"]:
-                # exception: header already printed a bar
-                ret = [para] + ret + tocbar
-            else:
-                ret = tocbar + ret + tocbar
+            ret = tocbar + ret + tocbar
         if rules["blankendautotoc"]:  # blank line after TOC
             ret.append("")
         if rules["autotocnewpagebefore"]:  # page break before TOC
@@ -4627,10 +4182,7 @@ def doHeader(headers, config):
     if target not in HEADER_TEMPLATE:
         Error("doHeader: Unknown target '%s'" % target)
 
-    if target in ("html", "xhtml") and config.get("css-sugar"):
-        template = HEADER_TEMPLATE[target + "css"].split("\n")
-    else:
-        template = HEADER_TEMPLATE[target].split("\n")
+    template = HEADER_TEMPLATE[target].split("\n")
 
     head_data = {"STYLE": [], "ENCODING": ""}
     for key in head_data.keys():
@@ -4638,7 +4190,7 @@ def doHeader(headers, config):
         # Remove .sty extension from each style filename (freaking tex)
         # XXX Can't handle --style foo.sty,bar.sty
         if target == "tex" and key == "STYLE":
-            val = [re.sub("(?i)\.sty$", "", x) for x in val]
+            val = [re.sub(r"(?i)\.sty$", "", x) for x in val]
         if key == "ENCODING":
             val = get_encoding_string(val, target)
         head_data[key] = val
@@ -4654,28 +4206,7 @@ def doHeader(headers, config):
 
         head_data["HEADER%d" % (i + 1)] = contents
 
-    # When using --css-inside, the template's <STYLE> line must be removed.
-    # Template line removal for empty header keys is made some lines above.
-    # That's why we will clean STYLE now.
-    if target in ("html", "xhtml") and config.get("css-inside") and config.get("style"):
-        head_data["STYLE"] = []
-
     Debug("Header Data: %s" % head_data, 1)
-
-    # ASCII Art does not use a header template, aa_header() formats the header
-    if target == "art":
-        n_h = len([v for v in head_data if v.startswith("HEADER") and head_data[v]])
-        if not n_h:
-            return []
-        if config["slides"]:
-            x = config["height"] - 3 - (n_h * 3)
-            n = x // (n_h + 1)
-            end = x % (n_h + 1)
-            template = aa_header(head_data, config["width"], n, end)
-        else:
-            template = [""] + aa_header(head_data, config["width"], 2, 0)
-        # Header done, let's get out
-        return template
 
     # Scan for empty dictionary keys
     # If found, scan template lines for that key reference
@@ -4709,36 +4240,6 @@ def doHeader(headers, config):
     # Populate template with data (dict expansion)
     template = "\n".join(template) % head_data
 
-    # Adding CSS contents into template (for --css-inside)
-    # This code sux. Dirty++
-    if target in ("html", "xhtml") and config.get("css-inside") and config.get("style"):
-        set_global_config(config)  # usually on convert(), needed here
-        for i in range(len(config["style"])):
-            cssfile = config["style"][i]
-            if not os.path.isabs(cssfile):
-                infile = config.get("sourcefile")
-                cssfile = os.path.join(os.path.dirname(infile), cssfile)
-            try:
-                contents = Readfile(cssfile, 1)
-                css = "\n%s\n%s\n%s\n%s\n" % (
-                    doCommentLine("Included %s" % cssfile),
-                    TAGS["cssOpen"],
-                    "\n".join(contents),
-                    TAGS["cssClose"],
-                )
-                # Style now is content, needs escaping (tex)
-                # css = maskEscapeChar(css)
-            except:
-                errmsg = "CSS include failed for %s" % cssfile
-                css = "\n%s\n" % (doCommentLine(errmsg))
-            # Insert this CSS file contents on the template
-            template = re.sub("(?i)(</HEAD>)", css + r"\1", template)
-            # template = re.sub(r'(?i)(\\begin{document})',
-            #               css+'\n'+r'\1', template) # tex
-
-        # The last blank line to keep everything separated
-        template = re.sub("(?i)(</HEAD>)", "\n" + r"\1", template)
-
     return template.split("\n")
 
 
@@ -4766,11 +4267,8 @@ def doFooter(config):
 
     # Add txt2tags info at footer, if target supports comments
     if TAGS["comment"]:
-
-        # Not using TARGET_NAMES because it's i18n'ed.
-        # It's best to always present this info in english.
         target = config["target"]
-        if config["target"] == "tex":
+        if target == "tex":
             target = "LaTeX2e"
 
         t2t_version = "%s code generated by %s %s (%s)" % (
@@ -4794,14 +4292,14 @@ def doFooter(config):
 def doEscape(target, txt):
     "Target-specific special escapes. Apply *before* insert any tag."
     tmpmask = "vvvvThisEscapingSuxvvvv"
-    if target in ("html", "sgml", "xhtml", "dbk"):
+    if target in ("html", "sgml", "dbk"):
         txt = re.sub("&", "&amp;", txt)
         txt = re.sub("<", "&lt;", txt)
         txt = re.sub(">", "&gt;", txt)
         if target == "sgml":
             txt = re.sub("\xff", "&yuml;", txt)  # "+y
     elif target == "pm6":
-        txt = re.sub("<", "<\#60>", txt)
+        txt = re.sub("<", "<\\#60>", txt)
     elif target == "mgp":
         txt = re.sub("^%", " %", txt)  # add leading blank to avoid parse
     elif target == "man":
@@ -4839,7 +4337,6 @@ def doFinalEscape(target, txt):
     elif target == "tex":
         txt = txt.replace("_", r"\_")
         txt = txt.replace("vvvvTexUndervvvv", "_")  # shame!
-        ## JS
         txt = txt.replace("vvvUnderscoreInRawTextvvv", "_")
         txt = txt.replace("vvvUnderscoreInTaggedTextvvv", "_")
     return txt
@@ -4858,26 +4355,17 @@ def EscapeCharHandler(action, data):
 
 
 def maskEscapeChar(data):
-    "Replace any Escape Char \ with a text mask (Input: str or list)"
-    if type(data) == type([]):
+    "Replace any escape char with a text mask (Input: str or list)"
+    if isinstance(data, list):
         return [EscapeCharHandler("mask", x) for x in data]
     return EscapeCharHandler("mask", data)
 
 
 def unmaskEscapeChar(data):
-    "Undo the Escape char \ masking (Input: str or list)"
-    if type(data) == type([]):
+    "Undo the escape char masking (Input: str or list)"
+    if isinstance(data, list):
         return [EscapeCharHandler("unmask", x) for x in data]
     return EscapeCharHandler("unmask", data)
-
-
-def addLineBreaks(mylist):
-    "use LB to respect sys.platform"
-    ret = []
-    for line in mylist:
-        line = line.replace("\n", LB)  # embedded \n's
-        ret.append(line + LB)  # add final line break
-    return ret
 
 
 # Convert ['foo\nbar'] to ['foo', 'bar']
@@ -4894,7 +4382,7 @@ def compile_filters(filters, errmsg="Filter"):
             patt, repl = filters[i]
             try:
                 rgx = re.compile(patt)
-            except:
+            except Exception:
                 Error("%s: '%s'" % (errmsg, patt))
             filters[i] = (rgx, repl)
     return filters
@@ -4975,7 +4463,8 @@ def get_tagged_link(label, url):
         if image_re.match(label):
             if rules["imglinkable"]:  # get image tag
                 label = parse_images(label)
-            else:  #  img@link !supported
+            else:
+                # img@link !supported
                 label = "(%s)" % image_re.match(label).group(1)
 
         # Putting data on the right appearance order
@@ -5033,7 +4522,6 @@ def get_image_align(line):
     # Some special cases
     if BLOCK.isblock("table"):
         align = "center"  # ignore when table
-    #       if TARGET == 'mgp' and align == 'center': align = 'center'
 
     return align
 
@@ -5070,17 +4558,12 @@ def get_encoding_string(enc, target):
     # Apply translation table
     try:
         enc = translate[target][enc.lower()]
-    except:
+    except Exception:
         pass
     return enc
 
 
-##############################################################################
-##MerryChristmas,IdontwanttofighttonightwithyouImissyourbodyandIneedyourlove##
-##############################################################################
-
-
-def process_source_file(file_="", noconf=0, contents=[]):
+def process_source_file(file_="", noconf=0, contents=None):
     """
     Find and Join all the configuration available for a source file.
     No sanity checking is done on this step.
@@ -5104,15 +4587,13 @@ def process_source_file(file_="", noconf=0, contents=[]):
     else:
         source = SourceDocument(file_)
     head, conf, body = source.split()
-    Message(_("Source document contents stored"), 2)
+    Message("Source document contents stored", 2)
     if not noconf:
         # Read document config
         source_raw = source.get_raw_config()
         # Join all the config directives found, then parse it
         full_raw = RC_RAW + source_raw + CMDLINE_RAW
-        Message(
-            _("Parsing and saving all config found (%03d items)") % (len(full_raw)), 1
-        )
+        Message("Parsing and saving all config found (%03d items)" % (len(full_raw)), 1)
         full_parsed = ConfigMaster(full_raw).parse()
         # Add manually the filename to the conf dic
         if contents:
@@ -5130,7 +4611,7 @@ def process_source_file(file_="", noconf=0, contents=[]):
         elif full_parsed.get("show-config-value"):
             config_value = full_parsed.get(full_parsed["show-config-value"])
             if config_value:
-                if type(config_value) == type([]):
+                if isinstance(config_value, list):
                     print("\n".join(config_value))
                 else:
                     print(config_value)
@@ -5163,11 +4644,11 @@ def convert_this_files(configs):
         # Compose the target file Headers
         # TODO escape line before?
         # TODO see exceptions by tex and mgp
-        Message(_("Composing target Headers"), 1)
+        Message("Composing target Headers", 1)
         target_head = doHeader(source_head, myconf)
         # Parse the full marked body into tagged target
         first_body_line = (len(source_head) or 1) + len(source_conf) + 1
-        Message(_("Composing target Body"), 1)
+        Message("Composing target Body", 1)
         target_body, marked_toc = convert(
             source_body, myconf, firstlinenr=first_body_line
         )
@@ -5177,19 +4658,12 @@ def convert_this_files(configs):
                 print(line)
             return
 
-        # Close the last slide
-        if myconf["slides"] and not myconf["toc-only"] and myconf["target"] == "art":
-            n = (myconf["height"] - 1) - (AA_COUNT % (myconf["height"] - 1) + 1)
-            target_body = (
-                target_body + ([""] * n) + [aa_line(AA["bar2"], myconf["width"])]
-            )
-
         # Compose the target file Footer
-        Message(_("Composing target Footer"), 1)
+        Message("Composing target Footer", 1)
         target_foot = doFooter(myconf)
 
         # Make TOC (if needed)
-        Message(_("Composing target TOC"), 1)
+        Message("Composing target TOC", 1)
         tagged_toc = toc_tagger(marked_toc, myconf)
         target_toc = toc_formatter(tagged_toc, myconf)
         target_body = toc_inside_body(target_body, target_toc, myconf)
@@ -5202,7 +4676,7 @@ def convert_this_files(configs):
         if myconf.get("outfile") == MODULEOUT:
             return finish_him(outlist, myconf), myconf
         else:
-            Message(_("Saving results to the output file"), 1)
+            Message("Saving results to the output file", 1)
             finish_him(outlist, myconf)
 
 
@@ -5224,12 +4698,6 @@ def parse_images(line):
             else:
                 align_tag = TAGS["_imgAlign" + align_name]
                 tag = regex["_imgAlign"].sub(align_tag, tag, 1)
-
-            # Dirty fix to allow centered solo images
-            if align == "center" and TARGET in ("html", "xhtml"):
-                rest = regex["img"].sub("", line, 1)
-                if re.match("^\s+$", rest):
-                    tag = "<center>%s</center>" % tag
 
         if TARGET == "tex":
             tag = re.sub(r"\\b", r"\\\\b", tag)
@@ -5275,8 +4743,10 @@ def get_include_contents(file_, path=""):
     # Default txt2tags marked text, just BODY matters
     if id_ == "t2t":
         lines = get_file_body(filepath)
-        # TODO fix images relative path if file has a path, ie.: chapter1/index.t2t (wait until tree parsing)
-        # TODO for the images path fix, also respect outfile path, if different from infile (wait until tree parsing)
+        # TODO fix images relative path if file has a path, ie.:
+        # chapter1/index.t2t (wait until tree parsing)
+        # TODO for the images path fix, also respect outfile path,
+        # if different from infile (wait until tree parsing)
         lines.insert(0, "%%INCLUDED(%s) starts here: %s" % (id_, file_))
         # This appears when included hit EOF with verbatim area open
         # lines.append('%%INCLUDED(%s) ends here: %s'%(id_,file_))
@@ -5307,7 +4777,7 @@ def convert(bodylines, config, firstlinenr=1):
     f_lastwasblank = 0
 
     # Compiling all PreProc regexes
-    pre_filter = compile_filters(CONF["preproc"], _("Invalid PreProc filter regex"))
+    pre_filter = compile_filters(CONF["preproc"], "Invalid PreProc filter regex")
 
     # Let's mark it up!
     linenr = firstlinenr - 1
@@ -5324,11 +4794,11 @@ def convert(bodylines, config, firstlinenr=1):
 
         # Apply PreProc filters
         if pre_filter:
-            errmsg = _("Invalid PreProc filter replacement")
+            errmsg = "Invalid PreProc filter replacement"
             for rgx, repl in pre_filter:
                 try:
                     line = rgx.sub(repl, line)
-                except:
+                except Exception:
                     Error("%s: '%s'" % (errmsg, repl))
 
         line = maskEscapeChar(line)  # protect \ char
@@ -5513,7 +4983,7 @@ def convert(bodylines, config, firstlinenr=1):
 
                 incpath = os.path.dirname(CONF["sourcefile"])
                 incfile = val
-                err = _("A file cannot include itself (loop!)")
+                err = "A file cannot include itself (loop!)"
                 if CONF["sourcefile"] == incfile:
                     Error("%s: %s" % (err, incfile))
                 inctype, inclines = get_include_contents(incfile, incpath)
@@ -5531,52 +5001,6 @@ def convert(bodylines, config, firstlinenr=1):
                     # Remove %!include call
                     if CONF["dump-source"]:
                         dump_source.pop()
-
-                # This line is done, go to next
-                continue
-
-            # %!csv command
-            elif key == "csv":
-
-                if not csv:
-                    Error("Python module 'csv' not found, but needed for %!csv")
-
-                table = []
-                filename = val
-                reader = csv.reader(Readfile(filename))
-
-                # Convert each CSV line to a txt2tags' table line
-                # foo,bar,baz -> | foo | bar | baz |
-                try:
-                    for row in reader:
-                        table.append("| %s |" % " | ".join(row))
-                except csv.Error as e:
-                    Error("CSV: file %s: %s" % (filename, e))
-
-                # Parse and convert the new table
-                # Note: cell contents is raw, no t2t marks are parsed
-                if rules["tableable"]:
-                    ret.extend(BLOCK.blockin("table"))
-                    if table:
-                        BLOCK.tableparser.__init__(table[0])
-                        for row in table:
-                            tablerow = TableMaster().parse_row(row)
-                            BLOCK.tableparser.add_row(tablerow)
-
-                            # Very ugly, but necessary for escapes
-                            line = SEPARATOR.join(tablerow["cells"])
-                            BLOCK.holdadd(doEscape(target, line))
-                        ret.extend(BLOCK.blockout())
-
-                # Tables are mapped to verb when target is not table-aware
-                else:
-                    if target == "art" and table:
-                        table = aa_table(table)
-                    ret.extend(BLOCK.blockin("verb"))
-                    BLOCK.propset("mapped", "table")
-                    for row in table:
-                        BLOCK.holdadd(row)
-                    ret.extend(BLOCK.blockout())
 
                 # This line is done, go to next
                 continue
@@ -5815,7 +5239,7 @@ def convert(bodylines, config, firstlinenr=1):
 
         # ---------------------[ Hold or Return? ]-------------------
 
-        ### Now we must choose where to put the parsed line
+        # Now we must choose where to put the parsed line
         #
         if not results_box:
             # List item extra lines
@@ -5857,19 +5281,19 @@ def convert(bodylines, config, firstlinenr=1):
     return ret, marked_toc
 
 
-def exec_command_line(user_cmdline=[]):
+def exec_command_line(user_cmdline=None):
     global CMDLINE_RAW, RC_RAW, DEBUG, VERBOSE, QUIET, Error
 
     # Extract command line data
     cmdline_data = user_cmdline or sys.argv[1:]
-    CMDLINE_RAW = CommandLine().get_raw_config(cmdline_data, relative=1)
+    CMDLINE_RAW = CommandLine().get_raw_config(cmdline_data, relative=True)
     cmdline_parsed = ConfigMaster(CMDLINE_RAW).parse()
     DEBUG = cmdline_parsed.get("debug") or 0
     VERBOSE = cmdline_parsed.get("verbose") or 0
     QUIET = cmdline_parsed.get("quiet") or 0
     infiles = cmdline_parsed.get("infile") or []
 
-    Message(_("Txt2tags %s processing begins") % __version__, 1)
+    Message("Txt2tags %s processing begins" % __version__, 1)
 
     # The easy ones
     if cmdline_parsed.get("help"):
@@ -5882,24 +5306,23 @@ def exec_command_line(user_cmdline=[]):
 
     # Multifile haters
     if len(infiles) > 1:
-        errmsg = _("Option --%s can't be used with multiple input files")
+        errmsg = "Option --%s can't be used with multiple input files"
         for option in NO_MULTI_INPUT:
             if cmdline_parsed.get(option):
                 Error(errmsg % option)
 
     Debug("system platform: %s" % sys.platform)
     Debug("python version: %s" % (sys.version.split("(")[0]))
-    Debug("line break char: %s" % repr(LB))
     Debug("command line: %s" % sys.argv)
     Debug("command line raw config: %s" % CMDLINE_RAW, 1)
 
     # Extract RC file config
     if cmdline_parsed.get("rc") == 0:
-        Message(_("Ignoring user configuration file"), 1)
+        Message("Ignoring user configuration file", 1)
     else:
         rc_file = get_rc_path()
         if os.path.isfile(rc_file):
-            Message(_("Loading user configuration file"), 1)
+            Message("Loading user configuration file", 1)
             RC_RAW = ConfigLines(file_=rc_file).get_raw_config()
 
         Debug("rc file: %s" % rc_file)
@@ -5911,32 +5334,25 @@ def exec_command_line(user_cmdline=[]):
     # TODO#1: this checking should be only in ConfigMaster.sanity()
     if not infiles:
         Error(
-            _("Missing input file (try --help)")
+            "Missing input file (try --help)"
             + "\n\n"
-            + _("Please inform an input file (.t2t) at the end of the command.")
+            + "Please inform an input file (.t2t) at the end of the command."
             + "\n"
-            + _("Example:")
-            + " %s -t html %s" % (my_name, _("file.t2t"))
+            + "Example:"
+            + " %s -t html %s" % (my_name, "file.t2t")
         )
 
     convert_this_files(infiles_config)
 
-    Message(_("Txt2tags finished successfully"), 1)
+    Message("Txt2tags finished successfully", 1)
 
 
 if __name__ == "__main__":
     try:
         exec_command_line()
     except error as msg:
-        sys.stderr.write("%s\n" % msg)
-        sys.stderr.flush()
-        sys.exit(1)
-    except SystemExit:
-        pass
-    except:
-        sys.stderr.write(getUnknownErrorMessage())
-        sys.stderr.flush()
-        sys.exit(1)
-    Quit()
-
-# The End.
+        sys.exit(msg)
+    except Exception:
+        sys.exit(getUnknownErrorMessage())
+    else:
+        Quit()
